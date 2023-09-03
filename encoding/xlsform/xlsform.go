@@ -64,6 +64,7 @@ type question struct {
 	name               string
 	questionType       string
 	label              map[string]string
+	relevant           *string
 	hint               map[string]string
 	choiceKey          *string
 	required           bool
@@ -74,6 +75,7 @@ type question struct {
 	choiceFilter       string
 	calculation        string
 	appearance         string
+	readOnly           bool
 }
 
 func newQuestion(survey string) *question {
@@ -128,10 +130,19 @@ func fillQuestionFields(question *question, label string, val cue.Value) (err er
 		question.appearance, err = val.String()
 	case "calculation":
 		question.calculation, err = val.String()
+	case "read_only":
+		question.readOnly, err = val.Bool()
 	case "choices":
 		var choiceKey string
 		choiceKey, err = val.LookupPath(cue.ParsePath("name")).String()
 		question.choiceKey = &choiceKey
+	case "relevant":
+		var relevantCondition string
+		relevantCondition, err = val.String()
+		if relevantCondition != "" {
+			question.relevant = &relevantCondition
+		}
+
 	}
 	return
 }
@@ -217,8 +228,9 @@ func readFormConfiguration(path string) (*formConfig, error) {
 }
 
 type choiceEntry struct {
-	name string
-	text map[string]string
+	name           string
+	text           map[string]string
+	filterCategory map[string]string
 }
 
 type choice struct {
@@ -227,30 +239,67 @@ type choice struct {
 }
 
 func readChoice(val cue.Value) (*choice, error) {
-	choiceKey, err := val.LookupPath(cue.ParsePath("name")).String()
+	fieldsIter, err := val.Fields()
 	if err != nil {
 		return nil, err
 	}
-	choice := &choice{key: choiceKey, labels: []choiceEntry{}}
-	choicesIter, err := val.LookupPath(cue.ParsePath("choices")).Fields()
-	if err != nil {
-		return nil, err
-	}
-	for choicesIter.Next() {
-		c := choicesIter.Label()
-		iter, err := choicesIter.Value().Fields()
-		if err != nil {
-			return nil, err
-		}
-		translate := map[string]string{}
-		for iter.Next() {
-			translate[iter.Label()], err = iter.Value().String()
+	choice := &choice{}
+	for fieldsIter.Next() {
+		switch fieldsIter.Label() {
+		case "name":
+			choiceKey, err := fieldsIter.Value().String()
 			if err != nil {
 				return nil, err
 			}
+			choice.key = choiceKey
+
+		case "choices":
+			choicesIter, err := fieldsIter.Value().List()
+			if err != nil {
+				return nil, err
+			}
+			entries := []choiceEntry{}
+			for choicesIter.Next() {
+				choiceEntry := choiceEntry{filterCategory: make(map[string]string)}
+				choiceStructIter, err := choicesIter.Value().Fields()
+				if err != nil {
+					return nil, err
+				}
+				for choiceStructIter.Next() {
+					if choiceStructIter.Label() == "filterCategory" {
+						categoryIter, err := choiceStructIter.Value().Fields()
+						if err != nil {
+							return nil, err
+						}
+						for categoryIter.Next() {
+							val, err := categoryIter.Value().String()
+							if err != nil {
+								return nil, err
+							}
+							choiceEntry.filterCategory[categoryIter.Label()] = val
+						}
+					} else {
+						choiceEntry.name = choiceStructIter.Label()
+						iter, err := choiceStructIter.Value().Fields()
+						if err != nil {
+							return nil, err
+						}
+						translate := map[string]string{}
+						for iter.Next() {
+							translate[iter.Label()], err = iter.Value().String()
+							if err != nil {
+								return nil, err
+							}
+						}
+						choiceEntry.text = translate
+					}
+				}
+				entries = append(entries, choiceEntry)
+			}
+			choice.labels = entries
 		}
-		choice.labels = append(choice.labels, choiceEntry{name: c, text: translate})
 	}
+
 	return choice, nil
 }
 
@@ -282,7 +331,6 @@ func readSurveyQuestions(survey, path string) ([]*question, []*choice, error) {
 					return nil, nil, err
 				}
 				choices = append(choices, choice)
-				fmt.Printf("%+v\n", choice)
 			}
 		}
 		questions = append(questions, question)
@@ -310,7 +358,7 @@ type GroupHeader struct {
 	survey *survey
 }
 
-func indexOf(arr []interface{}, val interface{}) int {
+func indexOf[K interface{}](arr []K, val K) int {
 	for idx, item := range arr {
 		if reflect.DeepEqual(item, val) {
 			return idx
@@ -368,11 +416,15 @@ func fillSurveyRowData(columns []string, q *question) *[]interface{} {
 					row[idx] = "yes"
 				}
 			case "relevant":
-				row[idx] = ""
+				if q.relevant != nil {
+					row[idx] = *q.relevant
+				}
 			case "choice_filter":
 				row[idx] = q.choiceFilter
 			case "read_only":
-				row[idx] = ""
+				if q.readOnly {
+					row[idx] = "yes"
+				}
 			case "calculation":
 				row[idx] = q.calculation
 			case "appearance":
@@ -386,6 +438,9 @@ func fillSurveyRowData(columns []string, q *question) *[]interface{} {
 func buildSurveyRows(formDir string, languages []string, surveys []*surveyConfig) ([]interface{}, map[string]*choice, error) {
 	var rows []interface{}
 	choiceMap := make(map[string]*choice)
+	indexOfElement := func(arr []interface{}, val interface{}) int {
+		return indexOf(arr, val)
+	}
 	for _, surveyConf := range surveys {
 		rows = append(rows, GroupHeader{BeginGroupHeader, surveyConf.survey})
 		questions, choices, err := getSurveyQuestions(formDir, surveyConf.survey)
@@ -407,7 +462,7 @@ func buildSurveyRows(formDir string, languages []string, surveys []*surveyConfig
 				choiceMap[choice.key] = choice
 			}
 			if nestedSurvey.after_element != nil {
-				nestedStart := indexOf(rows, nestedSurvey.after_element)
+				nestedStart := indexOfElement(rows, nestedSurvey.after_element)
 				var newRows []interface{}
 				newRows = append(newRows, rows[:nestedStart+1]...)
 				newRows = append(newRows, GroupHeader{BeginGroupHeader, nestedSurvey})
@@ -463,6 +518,14 @@ func buildChoiceRows(languages []string, choiceMap map[string]*choice) []interfa
 				} else if strings.HasPrefix(header, "label::") {
 					lang := strings.TrimPrefix(header, "label::")
 					row[idx] = entry.text[lang]
+				}
+			}
+			for label, value := range entry.filterCategory {
+				if idx := indexOf(columnHeaders, label); idx == -1 {
+					columnHeaders = append(columnHeaders, label)
+					row = append(row, value)
+				} else {
+					row[idx] = value
 				}
 			}
 			rows = append(rows, &row)

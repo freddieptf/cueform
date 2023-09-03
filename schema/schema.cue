@@ -2,17 +2,17 @@ package schema
 
 #Translatable: [string]: string
 
-#Condition: {
-    element: #Question
-    expr: string
-}
-
 #QuestionType: string
 #QuestionType: "integer" | "decimal" | "text" | "note" | "select_one" | "select_multiple" | "date" | "time" | "dateTime" | "hidden"
 
+#Choice: {
+    [string]: #Translatable
+    filterCategory?: [string]:string
+}
+
 #Choices: {
     name: string
-    choices: [string]: #Translatable
+    choices: [...#Choice]
 }
 
 #Question: {
@@ -25,7 +25,7 @@ package schema
     constraint_message?: #Translatable
     required?: bool
     required_message?: #Translatable
-    relevant?: [...#Condition]
+    relevant?: string
     choice_filter?: string
     read_only?: bool
     calculation?: string
@@ -38,7 +38,7 @@ package schema
 #Group: {
     name: string
     label?: #Translatable
-    relevant?: [...#Condition]
+    relevant?: string
     begin_after?: #Question
     appearance?: #GroupAppearance
 }

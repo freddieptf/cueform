@@ -11,7 +11,7 @@ has_functional_latrine: schema.#Question & {
    type: "select_one"
    choices: choice.yes_no
    label: {
-      "en": "Does ${place_name} have a functional latrine?"
+      en: "Does ${place_name} have a functional latrine?"
    }
    required: true
 }
@@ -19,6 +19,7 @@ has_functional_latrine: schema.#Question & {
 n_latrine: xlsform.#Note & {
    name: "n_latrine"
    label: {
-      "en": "<span style=\"color:blue;\">**Teach on the importance of using latrines to promote environmental hygiene and to prevent diseases.**</span>"
+      en: "<span style=\"color:blue;\">**Teach on the importance of using latrines to promote environmental hygiene and to prevent diseases.**</span>"
    }
+   relevant: "${\(has_functional_latrine.name)}=\"no\""
 }

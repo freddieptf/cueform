@@ -7,13 +7,17 @@ import (
 
 yes_no: schema.#Choices & {
     name: "yes_no"
-    choices: {
-        yes: {
-            "en": "Yes"
-            "sw": "Ndio"
+    choices: [
+        {
+            yes: {
+                "en": "Yes"
+                "sw": "Ndio"
+            },
+        },
+        {
+            no: {
+                "en": "No"
+            },
         }
-        no: {
-          "en": "No"
-        }
-    }
+    ]
 }
