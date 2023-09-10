@@ -89,10 +89,15 @@ func buildChoiceFile(pkg string, rows [][]string) (*ast.File, error) {
 	return file, nil
 }
 
-func buildGroupField(columnHeaders []string, total int, rows [][]string) (int, *ast.StructLit) {
+type groupField struct {
+	name string
+	lit  *ast.StructLit
+}
+
+func buildGroupField(schemaPkg *ast.Ident, columnHeaders []string, total int, rows [][]string) (int, *groupField) {
 	typeColumnIdx := indexOf(columnHeaders, "type")
 
-	group := &ast.StructLit{Lbrace: token.Newline.Pos()}
+	group := &ast.StructLit{}
 	groupRow := rows[0]
 	for idx, header := range columnHeaders {
 		if idx >= len(groupRow) || groupRow[idx] == "" {
@@ -111,32 +116,32 @@ func buildGroupField(columnHeaders []string, total int, rows [][]string) (int, *
 		}
 		if row[typeColumnIdx] == "begin group" {
 			fmt.Println("found nested", row[1])
-			nTotal, nested := buildGroupField(columnHeaders, total, rows[idx:])
-			childrenList.Elts = append(childrenList.Elts, nested)
+			nTotal, nested := buildGroupField(schemaPkg, columnHeaders, total, rows[idx:])
+			childrenList.Elts = append(childrenList.Elts, ast.NewBinExpr(token.AND, &ast.SelectorExpr{X: schemaPkg, Sel: ast.NewIdent("#Group")}, nested.lit))
 			idx += nTotal
 			total = idx
 		} else if row[typeColumnIdx] == "end group" {
 			break
 		} else {
-			groupStruct := ast.StructLit{Lbrace: token.Newline.Pos()}
+			childStruct := ast.StructLit{}
 			for idx, header := range columnHeaders {
 				if idx >= len(row) || row[idx] == "" {
 					continue
 				}
-				groupStruct.Elts = append(groupStruct.Elts, &ast.Field{Label: ast.NewIdent(header), Value: ast.NewString(row[idx])})
+				childStruct.Elts = append(childStruct.Elts, &ast.Field{Label: ast.NewIdent(header), Value: ast.NewString(row[idx])})
 			}
-			childrenList.Elts = append(childrenList.Elts, &groupStruct)
+			childrenList.Elts = append(childrenList.Elts, ast.NewBinExpr(token.AND, &ast.SelectorExpr{X: schemaPkg, Sel: ast.NewIdent("#Question")}, &childStruct))
 			total++
 		}
 	}
-	return total, group
+	return total, &groupField{name: groupRow[indexOf(columnHeaders, "name")], lit: group}
 }
 
-func buildGroupFields(columnHeaders []string, rows [][]string) *ast.ListLit {
+func buildGroupFields(schemaPkg *ast.Ident, columnHeaders []string, rows [][]string) []*groupField {
 	typeColumnIdx := indexOf(columnHeaders, "type")
-	surveyList := &ast.ListLit{Rbrack: token.Newline.Pos()}
 	idx, start := 0, -1
 	groupTrackz := []string{}
+	fields := []*groupField{}
 	for {
 		if idx >= len(rows) {
 			break
@@ -157,8 +162,8 @@ func buildGroupFields(columnHeaders []string, rows [][]string) *ast.ListLit {
 			}
 			if len(groupTrackz) == 0 {
 				fmt.Println("processing group:", rows[start][1])
-				_, group := buildGroupField(columnHeaders, 0, rows[start:idx])
-				surveyList.Elts = append(surveyList.Elts, group)
+				_, group := buildGroupField(schemaPkg, columnHeaders, 0, rows[start:idx])
+				fields = append(fields, group)
 				start = -1
 			}
 		} else {
@@ -166,7 +171,7 @@ func buildGroupFields(columnHeaders []string, rows [][]string) *ast.ListLit {
 		}
 		idx++
 	}
-	return surveyList
+	return fields
 }
 
 func buildSurveyFile(pkg string, rows [][]string) (*ast.File, error) {
@@ -175,10 +180,21 @@ func buildSurveyFile(pkg string, rows [][]string) (*ast.File, error) {
 
 	schemaImportSpec := ast.NewImport(nil, "github.com/freddieptf/cueform/schema/xlsform")
 	file.Decls = append(file.Decls, &ast.ImportDecl{Specs: []*ast.ImportSpec{schemaImportSpec}})
+	info, err := astutil.ParseImportSpec(schemaImportSpec)
+	if err != nil {
+		log.Fatal(err)
+	}
+	schemaPkg := ast.NewIdent(info.Ident)
+	nlSchemaPkg := &ast.Ident{NamePos: token.Newline.Pos(), Name: info.Ident}
 
 	columnHeaders := rows[0]
-	groups := buildGroupFields(columnHeaders, rows[1:])
-	file.Decls = append(file.Decls, &ast.Field{Label: ast.NewIdent("survey"), Value: groups})
+	for _, group := range buildGroupFields(nlSchemaPkg, columnHeaders, rows[1:]) {
+		field := &ast.Field{
+			Label: ast.NewIdent(group.name),
+			Value: ast.NewBinExpr(token.AND, &ast.SelectorExpr{X: schemaPkg, Sel: ast.NewIdent("#Group")}, group.lit),
+		}
+		file.Decls = append(file.Decls, field)
+	}
 
 	return file, nil
 }
