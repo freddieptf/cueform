@@ -4,7 +4,7 @@ package xlsform
 	type:           string
 	name:           string
 	constraint?:    string
-	required?:      bool
+	required?:      string
 	relevant?:      string
 	choice_filter?: string
 	read_only?:     bool
@@ -13,13 +13,11 @@ package xlsform
 	...
 }
 
-#GroupAppearance: "field-list" | "table-list"
-
 #Group: {
 	type:        string
 	name:        string
 	relevant?:   string
-	appearance?: #GroupAppearance
+	appearance?: string
 	children?: [...]
 	...
 }
