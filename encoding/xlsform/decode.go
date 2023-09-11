@@ -30,7 +30,7 @@ func makeFormDir(path string) (string, error) {
 
 func buildChoiceField(columnHeader []string, choiceKey string, rows [][]string) (*ast.StructLit, error) {
 	entries := ast.NewList()
-	choice := ast.NewStruct(&ast.Field{Label: ast.NewIdent("name"), Value: ast.NewString(choiceKey)}, &ast.Field{Label: ast.NewIdent("choices"), Value: entries})
+	choice := ast.NewStruct(&ast.Field{Label: ast.NewIdent("list_name"), Value: ast.NewString(choiceKey)}, &ast.Field{Label: ast.NewIdent("choices"), Value: entries})
 	for _, row := range rows {
 		choiceEntry := &ast.Field{}
 		for idx, colVal := range row {
