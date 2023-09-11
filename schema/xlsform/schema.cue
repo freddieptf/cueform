@@ -28,6 +28,6 @@ package xlsform
 }
 
 #Choices: {
-	name: string
+	list_name: string
 	choices: [...#Choice]
 }
