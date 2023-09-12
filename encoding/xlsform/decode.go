@@ -26,7 +26,7 @@ func makeFormDir(parent, formName string) (string, error) {
 }
 
 func buildChoiceField(columnHeader []string, choiceKey string, rows [][]string) (*ast.StructLit, error) {
-	entries := ast.NewList()
+	entries := &ast.ListLit{Rbrack: token.Newline.Pos()}
 	choice := ast.NewStruct(&ast.Field{Label: ast.NewIdent("list_name"), Value: ast.NewString(choiceKey)}, &ast.Field{Label: ast.NewIdent("choices"), Value: entries})
 	for _, row := range rows {
 		choiceEntry := &ast.Field{}
@@ -41,7 +41,9 @@ func buildChoiceField(columnHeader []string, choiceKey string, rows [][]string) 
 					&ast.Field{Label: ast.NewIdent(strings.TrimPrefix(columnHeader[idx], "label::")), Value: ast.NewString(colVal)})
 			}
 		}
-		entries.Elts = append(entries.Elts, ast.NewStruct(choiceEntry))
+		entry := ast.NewStruct(choiceEntry)
+		entry.Lbrace = token.Newline.Pos()
+		entries.Elts = append(entries.Elts, entry)
 	}
 	return choice, nil
 }
