@@ -88,12 +88,24 @@ func buildChoiceFile(pkg string, rows [][]string) (*ast.File, error) {
 	return file, nil
 }
 
-type groupField struct {
-	name string
-	lit  *ast.StructLit
+type field struct {
+	name      string
+	fieldType string
+	lit       *ast.StructLit
 }
 
-func buildGroupField(schemaPkg *ast.Ident, columnHeaders []string, total int, rows [][]string) (int, *groupField) {
+func buildQuestionStruct(columnHeaders []string, row []string) *ast.StructLit {
+	question := ast.StructLit{}
+	for idx, header := range columnHeaders {
+		if idx >= len(row) || row[idx] == "" {
+			continue
+		}
+		question.Elts = append(question.Elts, &ast.Field{Label: ast.NewIdent(header), Value: ast.NewString(row[idx])})
+	}
+	return &question
+}
+
+func buildGroupField(schemaPkg *ast.Ident, columnHeaders []string, total int, rows [][]string) (int, *field) {
 	typeColumnIdx := indexOf(columnHeaders, "type")
 
 	group := &ast.StructLit{}
@@ -122,25 +134,19 @@ func buildGroupField(schemaPkg *ast.Ident, columnHeaders []string, total int, ro
 		} else if row[typeColumnIdx] == "end group" {
 			break
 		} else {
-			childStruct := ast.StructLit{}
-			for idx, header := range columnHeaders {
-				if idx >= len(row) || row[idx] == "" {
-					continue
-				}
-				childStruct.Elts = append(childStruct.Elts, &ast.Field{Label: ast.NewIdent(header), Value: ast.NewString(row[idx])})
-			}
-			childrenList.Elts = append(childrenList.Elts, ast.NewBinExpr(token.AND, &ast.SelectorExpr{X: schemaPkg, Sel: ast.NewIdent("#Question")}, &childStruct))
+			childStruct := buildQuestionStruct(columnHeaders, row)
+			childrenList.Elts = append(childrenList.Elts, ast.NewBinExpr(token.AND, &ast.SelectorExpr{X: schemaPkg, Sel: ast.NewIdent("#Question")}, childStruct))
 			total++
 		}
 	}
-	return total, &groupField{name: groupRow[indexOf(columnHeaders, "name")], lit: group}
+	return total, &field{name: groupRow[indexOf(columnHeaders, "name")], fieldType: "group", lit: group}
 }
 
-func buildGroupFields(schemaPkg *ast.Ident, columnHeaders []string, rows [][]string) []*groupField {
+func buildFields(schemaPkg *ast.Ident, columnHeaders []string, rows [][]string) []*field {
 	typeColumnIdx := indexOf(columnHeaders, "type")
 	idx, start := 0, -1
 	groupTrackz := []string{}
-	fields := []*groupField{}
+	fields := []*field{}
 	for {
 		if idx >= len(rows) {
 			break
@@ -166,7 +172,10 @@ func buildGroupFields(schemaPkg *ast.Ident, columnHeaders []string, rows [][]str
 				start = -1
 			}
 		} else {
-
+			if start == -1 && len(row) > 0 {
+				// found rows not in a group, assume they are questions
+				fields = append(fields, &field{name: row[indexOf(columnHeaders, "name")], fieldType: "question", lit: buildQuestionStruct(columnHeaders, row)})
+			}
 		}
 		idx++
 	}
@@ -187,10 +196,18 @@ func buildSurveyFile(pkg string, rows [][]string) (*ast.File, error) {
 	nlSchemaPkg := &ast.Ident{NamePos: token.Newline.Pos(), Name: info.Ident}
 
 	columnHeaders := rows[0]
-	for _, group := range buildGroupFields(nlSchemaPkg, columnHeaders, rows[1:]) {
-		field := &ast.Field{
-			Label: ast.NewIdent(group.name),
-			Value: ast.NewBinExpr(token.AND, &ast.SelectorExpr{X: schemaPkg, Sel: ast.NewIdent("#Group")}, group.lit),
+	for _, val := range buildFields(nlSchemaPkg, columnHeaders, rows[1:]) {
+		var field *ast.Field
+		if val.fieldType == "group" {
+			field = &ast.Field{
+				Label: ast.NewIdent(val.name),
+				Value: ast.NewBinExpr(token.AND, &ast.SelectorExpr{X: schemaPkg, Sel: ast.NewIdent("#Group")}, val.lit),
+			}
+		} else {
+			field = &ast.Field{
+				Label: ast.NewIdent(val.name),
+				Value: ast.NewBinExpr(token.AND, &ast.SelectorExpr{X: schemaPkg, Sel: ast.NewIdent("#Question")}, val.lit),
+			}
 		}
 		file.Decls = append(file.Decls, field)
 	}
