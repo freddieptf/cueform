@@ -200,7 +200,7 @@ func readChoicesFile(path string) ([][]string, error) {
 	return rows, nil
 }
 
-func Encode(formDir string) error {
+func Encode(outputDir, formDir string) error {
 	formFile := excelize.NewFile()
 	defer func() {
 		if err := formFile.Close(); err != nil {
@@ -241,5 +241,5 @@ func Encode(formDir string) error {
 			return err
 		}
 	}
-	return formFile.SaveAs(fmt.Sprintf("%s.xlsx", filepath.Base(formDir)))
+	return formFile.SaveAs(filepath.Join(outputDir, fmt.Sprintf("%s.xlsx", filepath.Base(formDir))))
 }

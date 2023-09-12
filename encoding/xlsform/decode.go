@@ -17,12 +17,9 @@ import (
 	"github.com/xuri/excelize/v2"
 )
 
-func makeFormDir(path string) (string, error) {
-	dir := filepath.Join(filepath.Dir(path), strings.TrimSuffix(filepath.Base(path), ".xlsx"))
+func makeFormDir(parent, formName string) (string, error) {
+	dir := filepath.Join(parent, formName)
 	if err := os.Mkdir(dir, fs.ModePerm); err != nil && !errors.Is(err, fs.ErrExist) {
-		return "", err
-	}
-	if err := os.Mkdir(filepath.Join(dir, "survey"), fs.ModePerm); err != nil && !errors.Is(err, fs.ErrExist) {
 		return "", err
 	}
 	return dir, nil
@@ -207,7 +204,7 @@ func writeFile(path, name string, file *ast.File) error {
 	return ioutil.WriteFile(filepath.Join(path, fmt.Sprintf("%s.cue", name)), out, fs.ModePerm)
 }
 
-func Decode(path string) error {
+func Decode(outDir, path string) error {
 	file, err := excelize.OpenFile(path)
 	if err != nil {
 		return err
@@ -230,7 +227,7 @@ func Decode(path string) error {
 			fmt.Println("unexpected sheet", sheet)
 		}
 	}
-	parentDir, err := makeFormDir(path)
+	parentDir, err := makeFormDir(outDir, strings.TrimSuffix(filepath.Base(path), ".xlsx"))
 	if err != nil {
 		return err
 	}
