@@ -200,6 +200,14 @@ func readChoicesFile(path string) ([][]string, error) {
 	return rows, nil
 }
 
+func setDefaultColumnWidth(sheet string, f *excelize.File) {
+	f.SetColWidth(sheet, "A", "ZZ", 30)
+	switch sheet {
+	case "survey":
+		f.SetColWidth(sheet, "C", "C", 50)
+	}
+}
+
 func Encode(outputDir, formDir string) error {
 	formFile := excelize.NewFile()
 	defer func() {
@@ -212,7 +220,9 @@ func Encode(outputDir, formDir string) error {
 		if err != nil {
 			return err
 		}
+		setDefaultColumnWidth(sheet, formFile)
 	}
+	formFile.DeleteSheet("Sheet1")
 	surveyRows, err := readSurveyFile(filepath.Join(formDir, "survey.cue"))
 	if err != nil {
 		return err
