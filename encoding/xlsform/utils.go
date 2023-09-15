@@ -21,7 +21,7 @@ func indexOf[K interface{}](arr []K, val K) int {
 
 func loadFile(path string) (*cue.Value, error) {
 	ctx := cuecontext.New()
-	bis := load.Instances([]string{path}, &load.Config{ModuleRoot: "."})
+	bis := load.Instances([]string{path}, &load.Config{ModuleRoot: ""})
 	bi := bis[0]
 	// check for errors on the instance
 	// these are typically parsing errors
