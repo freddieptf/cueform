@@ -13,7 +13,7 @@ import (
 
 var (
 	langRe        = regexp.MustCompile(`::.+`)
-	surveyColumns = []string{"type", "name", "label", "required", "required_message", "relevant", "constraint", "constraint_message", "hint", "choice_filter", "read_only", "calculation", "appearance", "default"}
+	surveyColumns = []string{"type", "name", "label", "required", "required_message", "relevant", "repeat_count", "constraint", "constraint_message", "hint", "choice_filter", "read_only", "calculation", "appearance", "default"}
 	choiceColumns = []string{"list_name", "name", "label"}
 )
 
@@ -67,6 +67,9 @@ func (e *Encoder) fillSurveyElements(fieldKeys map[string]struct{}, vals *[]map[
 		} else {
 			if elType == "begin group" {
 				*vals = append(*vals, map[string]string{"type": "end group"})
+			}
+			if elType == "begin repeat" {
+				*vals = append(*vals, map[string]string{"type": "end repeat"})
 			}
 		}
 	}

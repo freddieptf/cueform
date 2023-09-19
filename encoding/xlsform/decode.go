@@ -69,7 +69,7 @@ func (d *Decoder) Decode() ([]byte, error) {
 	if surveyRows, err = file.GetRows("survey"); err != nil {
 		return nil, err
 	}
-	if fields := d.s.readSurveySheet(surveyRows); err != nil {
+	if fields, err := d.s.readSurveySheet(surveyRows); err != nil {
 		return nil, err
 	} else {
 		surveyBytes, err = d.s.getFileBytesFromNamedExpr(fields)
@@ -154,6 +154,9 @@ func (s *state) newConjuction(def string, sl ast.Expr) ast.Expr {
 }
 
 func (s *state) readChoiceSheet(rows [][]string) error {
+	if len(rows) == 0 { // choices can be empty
+		return nil
+	}
 	s.choiceColumnHeaders = rows[0]
 	s.choices = make(map[string]ast.Expr)
 	for choiceKey, rows := range s.buildChoiceMap(rows) {
@@ -205,12 +208,12 @@ func (s *state) buildGroupField(total int, rows [][]string) (int, *namedExpr) {
 		if len(row) == 0 {
 			continue
 		}
-		if row[s.typeColumnIdx] == "begin group" {
+		if strings.HasPrefix(row[s.typeColumnIdx], "begin ") {
 			nTotal, nested := s.buildGroupField(total, rows[idx:])
 			childrenList.Elts = append(childrenList.Elts, s.newConjuction("Group", nested.expr))
 			idx += nTotal
 			total = idx
-		} else if row[s.typeColumnIdx] == "end group" {
+		} else if strings.HasPrefix(row[s.typeColumnIdx], "end ") {
 			break
 		} else {
 			childrenList.Elts = append(childrenList.Elts, s.newConjuction("Question", s.buildQuestionStruct(true, row)))
@@ -223,7 +226,10 @@ func (s *state) buildGroupField(total int, rows [][]string) (int, *namedExpr) {
 	}
 }
 
-func (s *state) readSurveySheet(rows [][]string) []*namedExpr {
+func (s *state) readSurveySheet(rows [][]string) ([]*namedExpr, error) {
+	if len(rows) == 0 {
+		return nil, fmt.Errorf("found empty survey sheet")
+	}
 	s.surveyColumnHeaders = rows[0]
 	s.typeColumnIdx = indexOf(s.surveyColumnHeaders, "type")
 	s.nameColumnIdx = indexOf(s.surveyColumnHeaders, "name")
@@ -242,13 +248,13 @@ func (s *state) readSurveySheet(rows [][]string) []*namedExpr {
 			idx++
 			continue
 		}
-		if row[s.typeColumnIdx] == "begin group" {
+		if strings.HasPrefix(row[s.typeColumnIdx], "begin ") {
 			if start == -1 {
 				start = idx
 			}
-			groupTrackz = append(groupTrackz, "begin group")
-		} else if row[s.typeColumnIdx] == "end group" {
-			if groupTrackz[len(groupTrackz)-1] == "begin group" {
+			groupTrackz = append(groupTrackz, row[s.typeColumnIdx])
+		} else if strings.HasPrefix(row[s.typeColumnIdx], "end ") {
+			if strings.HasPrefix(groupTrackz[len(groupTrackz)-1], "begin ") {
 				groupTrackz = groupTrackz[:len(groupTrackz)-1]
 			}
 			if len(groupTrackz) == 0 {
@@ -264,7 +270,7 @@ func (s *state) readSurveySheet(rows [][]string) []*namedExpr {
 		}
 		idx++
 	}
-	return fields
+	return fields, nil
 }
 
 func (s *state) getFileBytesFromNamedExpr(fields []*namedExpr) ([]byte, error) {
