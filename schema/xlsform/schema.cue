@@ -6,6 +6,7 @@ package xlsform
 	constraint?:    string
 	required?:      string
 	relevant?:      string
+	choices?:       #Choices
 	choice_filter?: string
 	read_only?:     bool
 	calculation?:   string

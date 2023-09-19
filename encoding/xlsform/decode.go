@@ -39,16 +39,10 @@ func (d *Decoder) UseSchema(module, pkg string) error {
 	return nil
 }
 
-type DecodeResult struct {
-	Choices []byte
-	Survey  []byte
-	Err     error
-}
-
-func (d *Decoder) Decode() *DecodeResult {
+func (d *Decoder) Decode() ([]byte, error) {
 	file, err := excelize.OpenReader(d.r)
 	if err != nil {
-		return &DecodeResult{Err: err}
+		return nil, err
 	}
 	defer func() {
 		if err := file.Close(); err != nil {
@@ -58,38 +52,32 @@ func (d *Decoder) Decode() *DecodeResult {
 	sheets := file.GetSheetList()
 	for _, sheet := range []string{"survey", "choices", "settings"} {
 		if indexOf(sheets, sheet) == -1 {
-			return &DecodeResult{Err: fmt.Errorf("missing sheet %s", sheet)}
+			return nil, fmt.Errorf("missing sheet %s", sheet)
+		}
+	}
+	if choiceRows, err := file.GetRows("choices"); err != nil {
+		return nil, err
+	} else {
+		if err := d.s.readChoiceSheet(choiceRows); err != nil {
+			return nil, err
 		}
 	}
 	var (
-		choiceRows  [][]string
-		choiceBytes []byte
 		surveyRows  [][]string
 		surveyBytes []byte
 	)
-	if choiceRows, err = file.GetRows("choices"); err != nil {
-		return &DecodeResult{Err: err}
-	}
-	if fields, err := d.s.readChoiceSheet(choiceRows); err != nil {
-		return &DecodeResult{Err: err}
-	} else {
-		choiceBytes, err = d.s.getFileBytesFromFields(fields)
-		if err != nil {
-			return &DecodeResult{Err: err}
-		}
-	}
 	if surveyRows, err = file.GetRows("survey"); err != nil {
-		return &DecodeResult{Err: err}
+		return nil, err
 	}
 	if fields := d.s.readSurveySheet(surveyRows); err != nil {
-		return &DecodeResult{Err: err}
+		return nil, err
 	} else {
 		surveyBytes, err = d.s.getFileBytesFromNamedExpr(fields)
 		if err != nil {
-			return &DecodeResult{Err: err}
+			return nil, err
 		}
 	}
-	return &DecodeResult{Choices: choiceBytes, Survey: surveyBytes, Err: nil}
+	return surveyBytes, nil
 }
 
 //state, nice
@@ -98,6 +86,7 @@ type state struct {
 	schemaImportInfo    *astutil.ImportInfo
 	surveyColumnHeaders []string
 	choiceColumnHeaders []string
+	choices             map[string]ast.Expr
 	nameColumnIdx       int
 	typeColumnIdx       int
 }
@@ -144,30 +133,37 @@ func (s *state) buildChoiceMap(rows [][]string) map[string][][]string {
 	return choices
 }
 
-func (s *state) newConjuction(def string, sl *ast.StructLit) ast.Expr {
+func (s *state) newConjuctionOnNewLine(def string, sl ast.Expr, newLine bool) ast.Expr {
 	if s.schemaImportInfo != nil {
-		i := &ast.Ident{NamePos: token.Newline.Pos(), Name: s.schemaImportInfo.Ident}
+		i := &ast.Ident{Name: s.schemaImportInfo.Ident}
+		if newLine {
+			i.NamePos = token.Newline.Pos()
+		}
 		return ast.NewBinExpr(token.AND, &ast.SelectorExpr{X: i, Sel: ast.NewIdent(fmt.Sprintf("#%s", def))}, sl)
 	} else {
-		i := &ast.Ident{NamePos: token.Newline.Pos(), Name: fmt.Sprintf("#%s", def)}
+		i := &ast.Ident{Name: fmt.Sprintf("#%s", def)}
+		if newLine {
+			i.NamePos = token.Newline.Pos()
+		}
 		return ast.NewBinExpr(token.AND, i, sl)
 	}
 }
 
-func (s *state) readChoiceSheet(rows [][]string) ([]*ast.Field, error) {
+func (s *state) newConjuction(def string, sl ast.Expr) ast.Expr {
+	return s.newConjuctionOnNewLine(def, sl, true)
+}
+
+func (s *state) readChoiceSheet(rows [][]string) error {
 	s.choiceColumnHeaders = rows[0]
-	fields := []*ast.Field{}
+	s.choices = make(map[string]ast.Expr)
 	for choiceKey, rows := range s.buildChoiceMap(rows) {
 		choiceStruct, err := s.buildChoiceField(choiceKey, rows)
 		if err != nil {
-			return nil, err
+			return err
 		}
-		fields = append(fields, &ast.Field{
-			Label: ast.NewIdent(choiceKey),
-			Value: s.newConjuction("Choices", choiceStruct),
-		})
+		s.choices[choiceKey] = s.newConjuctionOnNewLine("Choices", choiceStruct, false)
 	}
-	return fields, nil
+	return nil
 }
 
 func (s *state) buildQuestionStruct(nl bool, row []string) ast.Expr {
@@ -176,10 +172,15 @@ func (s *state) buildQuestionStruct(nl bool, row []string) ast.Expr {
 		if idx >= len(row) || row[idx] == "" {
 			continue
 		}
-		question.Elts = append(question.Elts, &ast.Field{Label: ast.NewIdent(header), Value: ast.NewString(row[idx])})
+		if header == "type" && strings.HasPrefix(row[idx], "select_") {
+			raw := strings.SplitAfterN(row[idx], " ", 2)
+			qtype, choice := strings.TrimSpace(raw[0]), strings.TrimSpace(raw[1])
+			question.Elts = append(question.Elts, &ast.Field{Label: ast.NewIdent(header), Value: ast.NewString(qtype)}, &ast.Field{Label: ast.NewIdent("choices"), Value: s.choices[choice]})
+		} else {
+			question.Elts = append(question.Elts, &ast.Field{Label: ast.NewIdent(header), Value: ast.NewString(row[idx])})
+		}
 	}
-
-	return s.newConjuction("Question", &question)
+	return &question
 }
 
 type namedExpr struct {
@@ -206,19 +207,19 @@ func (s *state) buildGroupField(total int, rows [][]string) (int, *namedExpr) {
 		}
 		if row[s.typeColumnIdx] == "begin group" {
 			nTotal, nested := s.buildGroupField(total, rows[idx:])
-			childrenList.Elts = append(childrenList.Elts, nested.expr)
+			childrenList.Elts = append(childrenList.Elts, s.newConjuction("Group", nested.expr))
 			idx += nTotal
 			total = idx
 		} else if row[s.typeColumnIdx] == "end group" {
 			break
 		} else {
-			childrenList.Elts = append(childrenList.Elts, s.buildQuestionStruct(true, row))
+			childrenList.Elts = append(childrenList.Elts, s.newConjuction("Question", s.buildQuestionStruct(true, row)))
 			total++
 		}
 	}
 	return total, &namedExpr{
 		name: groupRow[s.nameColumnIdx],
-		expr: s.newConjuction("Group", group),
+		expr: group,
 	}
 }
 
@@ -252,30 +253,18 @@ func (s *state) readSurveySheet(rows [][]string) []*namedExpr {
 			}
 			if len(groupTrackz) == 0 {
 				_, group := s.buildGroupField(0, rows[start:idx])
-				fields = append(fields, group)
+				fields = append(fields, &namedExpr{group.name, s.newConjuctionOnNewLine("Group", group.expr, false)})
 				start = -1
 			}
 		} else {
 			if start == -1 && len(row) > 0 {
 				// found rows not in a group, assume they are questions
-				fields = append(fields, &namedExpr{name: row[s.nameColumnIdx], expr: s.buildQuestionStruct(false, row)})
+				fields = append(fields, &namedExpr{name: row[s.nameColumnIdx], expr: s.newConjuctionOnNewLine("Question", s.buildQuestionStruct(false, row), false)})
 			}
 		}
 		idx++
 	}
 	return fields
-}
-
-func (s *state) getFileBytesFromFields(fields []*ast.Field) ([]byte, error) {
-	file := &ast.File{}
-	file.Decls = append(file.Decls, &ast.Package{Name: ast.NewIdent("main")})
-	if s.schemaImportInfo != nil {
-		file.Decls = append(file.Decls, &ast.ImportDecl{Specs: []*ast.ImportSpec{ast.NewImport(nil, fmt.Sprintf("%s/%s", s.module, s.pkg))}})
-	}
-	for _, field := range fields {
-		file.Decls = append(file.Decls, field)
-	}
-	return format.Node(file, format.Simplify())
 }
 
 func (s *state) getFileBytesFromNamedExpr(fields []*namedExpr) ([]byte, error) {
