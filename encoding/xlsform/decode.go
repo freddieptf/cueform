@@ -1,6 +1,7 @@
 package xlsform
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -50,7 +51,7 @@ func (d *Decoder) Decode() ([]byte, error) {
 		}
 	}()
 	sheets := file.GetSheetList()
-	for _, sheet := range []string{"survey", "choices", "settings"} {
+	for _, sheet := range []string{"survey", "choices"} {
 		if indexOf(sheets, sheet) == -1 {
 			return nil, fmt.Errorf("missing sheet %s", sheet)
 		}
@@ -100,12 +101,14 @@ func (s *state) buildChoiceField(choiceKey string, rows [][]string) (*ast.Struct
 		for idx, colVal := range row {
 			if s.choiceColumnHeaders[idx] == "name" {
 				choiceEntry.Label = ast.NewIdent(colVal)
+			} else if s.choiceColumnHeaders[idx] == "label" {
+				return nil, errors.New("found choice label column with no language code")
 			} else if strings.HasPrefix(s.choiceColumnHeaders[idx], "label::") {
 				if choiceEntry.Value == nil {
 					choiceEntry.Value = ast.NewStruct()
 				}
-				choiceEntry.Value.(*ast.StructLit).Elts = append(choiceEntry.Value.(*ast.StructLit).Elts,
-					&ast.Field{Label: ast.NewIdent(strings.TrimPrefix(s.choiceColumnHeaders[idx], "label::")), Value: ast.NewString(colVal)})
+				label := &ast.Field{Label: &ast.Ident{Name: strings.TrimPrefix(s.choiceColumnHeaders[idx], "label::"), NamePos: token.Newline.Pos()}, Value: ast.NewString(colVal)}
+				choiceEntry.Value.(*ast.StructLit).Elts = append(choiceEntry.Value.(*ast.StructLit).Elts, label)
 			}
 		}
 		entry := ast.NewStruct(choiceEntry)
@@ -169,8 +172,9 @@ func (s *state) readChoiceSheet(rows [][]string) error {
 	return nil
 }
 
-func (s *state) buildQuestionStruct(nl bool, row []string) ast.Expr {
+func (s *state) buildQuestionStruct(nl bool, row []string) (ast.Expr, error) {
 	question := ast.StructLit{}
+	var labels *ast.StructLit = nil
 	for idx, header := range s.surveyColumnHeaders {
 		if idx >= len(row) || row[idx] == "" {
 			continue
@@ -179,11 +183,19 @@ func (s *state) buildQuestionStruct(nl bool, row []string) ast.Expr {
 			raw := strings.SplitAfterN(row[idx], " ", 2)
 			qtype, choice := strings.TrimSpace(raw[0]), strings.TrimSpace(raw[1])
 			question.Elts = append(question.Elts, &ast.Field{Label: ast.NewIdent(header), Value: ast.NewString(qtype)}, &ast.Field{Label: ast.NewIdent("choices"), Value: s.choices[choice]})
+		} else if header == "label" {
+			return nil, errors.New("found survey label column with no language code")
+		} else if strings.HasPrefix(header, "label::") {
+			if labels == nil {
+				labels = ast.NewStruct()
+				question.Elts = append(question.Elts, &ast.Field{Label: ast.NewIdent("label"), Value: labels})
+			}
+			labels.Elts = append(labels.Elts, &ast.Field{Label: &ast.Ident{Name: strings.TrimPrefix(header, "label::"), NamePos: token.Newline.Pos()}, Value: ast.NewString(row[idx])})
 		} else {
 			question.Elts = append(question.Elts, &ast.Field{Label: ast.NewIdent(header), Value: ast.NewString(row[idx])})
 		}
 	}
-	return &question
+	return &question, nil
 }
 
 type namedExpr struct {
@@ -192,14 +204,25 @@ type namedExpr struct {
 }
 
 // a group within a group within a group within a group
-func (s *state) buildGroupField(total int, rows [][]string) (int, *namedExpr) {
+func (s *state) buildGroupField(total int, rows [][]string) (int, *namedExpr, error) {
 	group := &ast.StructLit{}
+	var labels *ast.StructLit = nil
 	groupRow := rows[0]
 	for idx, header := range s.surveyColumnHeaders {
 		if idx >= len(groupRow) || groupRow[idx] == "" {
 			continue
 		}
-		group.Elts = append(group.Elts, &ast.Field{Label: ast.NewIdent(header), Value: ast.NewString(groupRow[idx])})
+		if strings.HasPrefix(header, "label::") {
+			if labels == nil {
+				labels = ast.NewStruct()
+				group.Elts = append(group.Elts, &ast.Field{Label: ast.NewIdent("label"), Value: labels})
+			}
+			labels.Elts = append(labels.Elts, &ast.Field{Label: &ast.Ident{Name: strings.TrimPrefix(header, "label::"), NamePos: token.Newline.Pos()}, Value: ast.NewString(groupRow[idx])})
+		} else if header == "label" {
+			return total, nil, errors.New("found survey label column with no language code")
+		} else {
+			group.Elts = append(group.Elts, &ast.Field{Label: ast.NewIdent(header), Value: ast.NewString(groupRow[idx])})
+		}
 	}
 	childrenList := &ast.ListLit{Rbrack: token.Newline.Pos()}
 	group.Elts = append(group.Elts, &ast.Field{Label: ast.NewIdent("children"), Value: childrenList})
@@ -209,21 +232,28 @@ func (s *state) buildGroupField(total int, rows [][]string) (int, *namedExpr) {
 			continue
 		}
 		if strings.HasPrefix(row[s.typeColumnIdx], "begin ") {
-			nTotal, nested := s.buildGroupField(total, rows[idx:])
+			nTotal, nested, err := s.buildGroupField(total, rows[idx:])
+			if err != nil {
+				return total, nil, err
+			}
 			childrenList.Elts = append(childrenList.Elts, s.newConjuction("Group", nested.expr))
 			idx += nTotal
 			total = idx
 		} else if strings.HasPrefix(row[s.typeColumnIdx], "end ") {
 			break
 		} else {
-			childrenList.Elts = append(childrenList.Elts, s.newConjuction("Question", s.buildQuestionStruct(true, row)))
+			q, err := s.buildQuestionStruct(true, row)
+			if err != nil {
+				return total, nil, err
+			}
+			childrenList.Elts = append(childrenList.Elts, s.newConjuction("Question", q))
 			total++
 		}
 	}
 	return total, &namedExpr{
 		name: groupRow[s.nameColumnIdx],
 		expr: group,
-	}
+	}, nil
 }
 
 func (s *state) readSurveySheet(rows [][]string) ([]*namedExpr, error) {
@@ -258,14 +288,21 @@ func (s *state) readSurveySheet(rows [][]string) ([]*namedExpr, error) {
 				groupTrackz = groupTrackz[:len(groupTrackz)-1]
 			}
 			if len(groupTrackz) == 0 {
-				_, group := s.buildGroupField(0, rows[start:idx])
+				_, group, err := s.buildGroupField(0, rows[start:idx])
+				if err != nil {
+					return nil, err
+				}
 				fields = append(fields, &namedExpr{group.name, s.newConjuctionOnNewLine("Group", group.expr, false)})
 				start = -1
 			}
 		} else {
 			if start == -1 && len(row) > 0 {
 				// found rows not in a group, assume they are questions
-				fields = append(fields, &namedExpr{name: row[s.nameColumnIdx], expr: s.newConjuctionOnNewLine("Question", s.buildQuestionStruct(false, row), false)})
+				q, err := s.buildQuestionStruct(false, row)
+				if err != nil {
+					return nil, err
+				}
+				fields = append(fields, &namedExpr{name: row[s.nameColumnIdx], expr: s.newConjuctionOnNewLine("Question", q, false)})
 			}
 		}
 		idx++

@@ -35,6 +35,19 @@ func (e *Encoder) fillSurveyElements(fieldKeys map[string]struct{}, vals *[]map[
 				continue
 			} else if fieldKey == "choices" {
 				continue
+			} else if fieldKey == "label" {
+				labelIter, err := elIter.Value().Fields()
+				if err != nil {
+					return err
+				}
+				for labelIter.Next() {
+					labelHeader := fmt.Sprintf("label::%s", labelIter.Label())
+					fieldKeys[labelHeader] = struct{}{}
+					element[labelHeader], err = labelIter.Value().String()
+					if err != nil {
+						return err
+					}
+				}
 			} else {
 				fieldKeys[fieldKey] = struct{}{}
 				keyVal, err := elIter.Value().String()
