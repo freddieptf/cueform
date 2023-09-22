@@ -3,10 +3,10 @@ package registration
 import "github.com/freddieptf/cueform/schema/xlsform"
 
 first_name: xlsform.#Question & {
-	type:        "text"
-	name:        "first_name"
-	"label::en": "First Name"
-	required:    "yes"
+	type: "text"
+	name: "first_name"
+	label: en: "First Name"
+	required: "yes"
 }
 
 middle_name: xlsform.#Question & {
