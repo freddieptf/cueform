@@ -12,9 +12,10 @@ import (
 )
 
 var (
-	langRe        = regexp.MustCompile(`::.+`)
-	surveyColumns = []string{"type", "name", "label", "required", "required_message", "relevant", "repeat_count", "constraint", "constraint_message", "hint", "choice_filter", "read_only", "calculation", "appearance", "default"}
-	choiceColumns = []string{"list_name", "name", "label"}
+	langRe           = regexp.MustCompile(`(?P<column>\w+)::(?P<lang>.+)`)
+	translatableCols = []string{"label", "required_message", "constraint_message", "hint"}
+	surveyColumns    = []string{"type", "name", "label", "required", "required_message", "relevant", "repeat_count", "constraint", "constraint_message", "hint", "choice_filter", "read_only", "calculation", "appearance", "default"}
+	choiceColumns    = []string{"list_name", "name", "label"}
 )
 
 func (e *Encoder) fillSurveyElements(fieldKeys map[string]struct{}, vals *[]map[string]string, val *cue.Value) error {
@@ -35,15 +36,15 @@ func (e *Encoder) fillSurveyElements(fieldKeys map[string]struct{}, vals *[]map[
 				continue
 			} else if fieldKey == "choices" {
 				continue
-			} else if fieldKey == "label" {
-				labelIter, err := elIter.Value().Fields()
+			} else if indexOf(translatableCols, fieldKey) != -1 {
+				translatableIter, err := elIter.Value().Fields()
 				if err != nil {
 					return err
 				}
-				for labelIter.Next() {
-					labelHeader := fmt.Sprintf("label::%s", labelIter.Label())
+				for translatableIter.Next() {
+					labelHeader := fmt.Sprintf("%s::%s", fieldKey, translatableIter.Label())
 					fieldKeys[labelHeader] = struct{}{}
-					element[labelHeader], err = labelIter.Value().String()
+					element[labelHeader], err = translatableIter.Value().String()
 					if err != nil {
 						return err
 					}

@@ -69,13 +69,19 @@ func getHeadersInOrder(headers map[string]struct{}, parentList []string) []strin
 			columnHeaders = append(columnHeaders, header)
 			delete(headers, header)
 		} else {
+			cols := []string{}
 			for key := range headers {
-				if header == langRe.ReplaceAllString(key, "") {
-					columnHeaders = append(columnHeaders, key)
+				match := langRe.FindStringSubmatch(key)
+				if len(match) != 3 {
+					continue
+				}
+				if header == match[1] {
+					cols = append(cols, key)
 					delete(headers, key)
-					break
 				}
 			}
+			sort.Strings(cols)
+			columnHeaders = append(columnHeaders, cols...)
 		}
 	}
 	moarFields := []string{}

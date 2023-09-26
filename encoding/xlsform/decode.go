@@ -174,7 +174,7 @@ func (s *state) readChoiceSheet(rows [][]string) error {
 
 func (s *state) buildQuestionStruct(nl bool, row []string) (ast.Expr, error) {
 	question := ast.StructLit{}
-	var labels *ast.StructLit = nil
+	translatables := map[string]*ast.StructLit{}
 	for idx, header := range s.surveyColumnHeaders {
 		if idx >= len(row) || row[idx] == "" {
 			continue
@@ -183,14 +183,17 @@ func (s *state) buildQuestionStruct(nl bool, row []string) (ast.Expr, error) {
 			raw := strings.SplitAfterN(row[idx], " ", 2)
 			qtype, choice := strings.TrimSpace(raw[0]), strings.TrimSpace(raw[1])
 			question.Elts = append(question.Elts, &ast.Field{Label: ast.NewIdent(header), Value: ast.NewString(qtype)}, &ast.Field{Label: ast.NewIdent("choices"), Value: s.choices[choice]})
-		} else if header == "label" {
-			return nil, errors.New("found survey label column with no language code")
-		} else if strings.HasPrefix(header, "label::") {
-			if labels == nil {
-				labels = ast.NewStruct()
-				question.Elts = append(question.Elts, &ast.Field{Label: ast.NewIdent("label"), Value: labels})
+		} else if indexOf(translatableCols, header) != -1 {
+			return nil, fmt.Errorf("found survey column with no language code: %s", header)
+		} else if match := langRe.FindStringSubmatch(header); len(match) == 3 && indexOf(translatableCols, match[1]) != -1 {
+			match := langRe.FindStringSubmatch(header)
+			col, lang := match[1], match[2]
+			if translatables[col] == nil {
+				labels := ast.NewStruct()
+				question.Elts = append(question.Elts, &ast.Field{Label: ast.NewIdent(col), Value: labels})
+				translatables[col] = labels
 			}
-			labels.Elts = append(labels.Elts, &ast.Field{Label: &ast.Ident{Name: strings.TrimPrefix(header, "label::"), NamePos: token.Newline.Pos()}, Value: ast.NewString(row[idx])})
+			translatables[col].Elts = append(translatables[col].Elts, &ast.Field{Label: &ast.Ident{Name: lang, NamePos: token.Newline.Pos()}, Value: ast.NewString(row[idx])})
 		} else {
 			question.Elts = append(question.Elts, &ast.Field{Label: ast.NewIdent(header), Value: ast.NewString(row[idx])})
 		}
@@ -206,20 +209,23 @@ type namedExpr struct {
 // a group within a group within a group within a group
 func (s *state) buildGroupField(total int, rows [][]string) (int, *namedExpr, error) {
 	group := &ast.StructLit{}
-	var labels *ast.StructLit = nil
+	translatables := map[string]*ast.StructLit{}
 	groupRow := rows[0]
 	for idx, header := range s.surveyColumnHeaders {
 		if idx >= len(groupRow) || groupRow[idx] == "" {
 			continue
 		}
-		if strings.HasPrefix(header, "label::") {
-			if labels == nil {
-				labels = ast.NewStruct()
-				group.Elts = append(group.Elts, &ast.Field{Label: ast.NewIdent("label"), Value: labels})
+		if match := langRe.FindStringSubmatch(header); len(match) == 3 && indexOf(translatableCols, match[1]) != -1 {
+			match := langRe.FindStringSubmatch(header)
+			col, lang := match[1], match[2]
+			if translatables[col] == nil {
+				labels := ast.NewStruct()
+				group.Elts = append(group.Elts, &ast.Field{Label: ast.NewIdent(col), Value: labels})
+				translatables[col] = labels
 			}
-			labels.Elts = append(labels.Elts, &ast.Field{Label: &ast.Ident{Name: strings.TrimPrefix(header, "label::"), NamePos: token.Newline.Pos()}, Value: ast.NewString(groupRow[idx])})
-		} else if header == "label" {
-			return total, nil, errors.New("found survey label column with no language code")
+			translatables[col].Elts = append(translatables[col].Elts, &ast.Field{Label: &ast.Ident{Name: lang, NamePos: token.Newline.Pos()}, Value: ast.NewString(groupRow[idx])})
+		} else if indexOf(translatableCols, header) != -1 {
+			return total, nil, fmt.Errorf("found survey column with no language code: %s", header)
 		} else {
 			group.Elts = append(group.Elts, &ast.Field{Label: ast.NewIdent(header), Value: ast.NewString(groupRow[idx])})
 		}
