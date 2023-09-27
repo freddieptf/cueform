@@ -64,19 +64,30 @@ func (d *Decoder) Decode() ([]byte, error) {
 		}
 	}
 	var (
-		surveyRows  [][]string
-		surveyBytes []byte
+		surveyRows   [][]string
+		settingsRows [][]string
+		surveyBytes  []byte
+		fields       []*namedExpr
 	)
 	if surveyRows, err = file.GetRows("survey"); err != nil {
 		return nil, err
 	}
-	if fields, err := d.s.readSurveySheet(surveyRows); err != nil {
+	if fields, err = d.s.readSurveySheet(surveyRows); err != nil {
+		return nil, err
+	}
+	if settingsRows, err = file.GetRows("settings"); err != nil {
+		return nil, err
+	}
+	if formSettings, err := d.s.readSettingsSheet(settingsRows); err != nil {
 		return nil, err
 	} else {
-		surveyBytes, err = d.s.getFileBytesFromNamedExpr(fields)
-		if err != nil {
-			return nil, err
+		if formSettings != nil {
+			fields = append(fields, formSettings)
 		}
+	}
+	surveyBytes, err = d.s.getFileBytesFromNamedExpr(fields)
+	if err != nil {
+		return nil, err
 	}
 	return surveyBytes, nil
 }
@@ -314,6 +325,17 @@ func (s *state) readSurveySheet(rows [][]string) ([]*namedExpr, error) {
 		idx++
 	}
 	return fields, nil
+}
+
+func (s *state) readSettingsSheet(rows [][]string) (*namedExpr, error) {
+	if len(rows) < 2 {
+		return nil, nil
+	}
+	settings := ast.NewStruct(&ast.Field{Label: ast.NewIdent("type"), Value: ast.NewString("settings")})
+	for idx, header := range rows[0] {
+		settings.Elts = append(settings.Elts, &ast.Field{Label: ast.NewIdent(header), Value: ast.NewString(rows[1][idx])})
+	}
+	return &namedExpr{name: "form_settings", expr: s.newConjuctionOnNewLine("Settings", settings, false)}, nil
 }
 
 func (s *state) getFileBytesFromNamedExpr(fields []*namedExpr) ([]byte, error) {

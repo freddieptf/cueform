@@ -32,3 +32,15 @@ package xlsform
 	list_name: string
 	choices: [...#Choice]
 }
+
+#Settings: {
+	form_title:        string
+	form_id:           string
+	public_key?:       string
+	submission_url?:   string
+	default_language?: string
+	style:             string
+	version?:          string
+	instance_name?:    string
+	...
+}
