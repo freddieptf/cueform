@@ -1,30 +1,42 @@
 package xlsform
 
+#Translatable: [string]: string
+#QuestionType: "select_one" | "select_multiple" | "select_one_from_file" | "select_multiple_from_file" | "select_one_external" |
+	"rank" | "text" | "integer" | "decimal" | "date" | "time" | "dateTime" | "geopoint" | "image" | "audio" | "background-audio" | "video" | "file" | "note" |
+	"barcode" | "acknowledge" | "calculate" | "geotrace" | "geoshape"
+
 #Question: {
-	type:           string
-	name:           string
-	constraint?:    string
-	required?:      string
-	relevant?:      string
-	choices?:       #Choices
-	choice_filter?: string
-	read_only?:     bool
-	calculation?:   string
-	appearance?:    string
+	type:                #QuestionType
+	name:                string
+	label:               #Translatable
+	constraint?:         string
+	constraint_message?: #Translatable
+	hint?:               #Translatable
+	required?:           string
+	required_message?:   #Translatable
+	relevant?:           string
+	choices?:            #Choices
+	choice_filter?:      string
+	read_only?:          string
+	calculation?:        string
+	appearance?:         string
 	...
 }
 
+#GroupAppearance: "field-list" | "table-list"
+#GroupType:       "begin_group" | "begin_repeat" | "begin group" | "begin repeat"
 #Group: {
-	type:        string
+	type:        #GroupType
 	name:        string
+	label:       #Translatable
 	relevant?:   string
-	appearance?: string
+	appearance?: #GroupAppearance
 	children?: [...]
 	...
 }
 
 #Choice: {
-	[string]: [string]:        string
+	[string]: #Translatable
 	filterCategory?: [string]: string
 }
 
