@@ -2,7 +2,10 @@ package xlsform
 
 import (
 	"fmt"
+	"io/ioutil"
+	"path/filepath"
 	"reflect"
+	"regexp"
 	"sort"
 
 	"cuelang.org/go/cue"
@@ -18,6 +21,23 @@ func indexOf[K interface{}](arr []K, val K) int {
 		}
 	}
 	return -1
+}
+
+var (
+	moduleRe = regexp.MustCompile(`module:\s+"(.+)"`)
+)
+
+func getModuleName(path string) (string, error) {
+	moduleCueFile := filepath.Join(path, "cue.mod", "module.cue")
+	contentBytes, err := ioutil.ReadFile(moduleCueFile)
+	if err != nil {
+		return "", fmt.Errorf("%w\ndid you forget to pass a module? run --help to see usage", err)
+	}
+	matches := moduleRe.FindStringSubmatch(string(contentBytes[:]))
+	if len(matches) < 2 {
+		return "", fmt.Errorf("couldn't find module name in %s", moduleCueFile)
+	}
+	return matches[1], nil
 }
 
 func loadFile(module, path string) (*cue.Value, error) {

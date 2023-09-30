@@ -21,23 +21,22 @@ type Decoder struct {
 
 func NewDecoder(r io.Reader) (*Decoder, error) {
 	decoder := &Decoder{r: r, s: state{}}
-	decoder.UseSchema("github.com/freddieptf/cueform", "schema/xlsform")
 	return decoder, nil
 }
 
-// experimental still, but at some point we'll need to use other schemas as long as they have definitions for Group,Choices and Question
 func (d *Decoder) UseSchema(module, pkg string) error {
-	if pkg == "" {
-		d.s.schemaImportInfo = nil
-		return nil
-	}
-	d.s.module, d.s.pkg = module, pkg
-	importInfo, err := astutil.ParseImportSpec(ast.NewImport(nil, fmt.Sprintf("%s/%s", d.s.module, d.s.pkg)))
+	moduleName, err := getModuleName(module)
 	if err != nil {
 		return err
 	}
-	d.s.schemaImportInfo = &importInfo
-	return nil
+	d.s.module, d.s.pkg = moduleName, pkg
+	importStr := d.s.module
+	if d.s.pkg != "" {
+		importStr = fmt.Sprintf("%s/%s", importStr, d.s.pkg)
+	}
+	d.s.importSpec = ast.NewImport(nil, importStr)
+	d.s.importInfo, err = astutil.ParseImportSpec(d.s.importSpec)
+	return err
 }
 
 func (d *Decoder) Decode() ([]byte, error) {
@@ -95,7 +94,8 @@ func (d *Decoder) Decode() ([]byte, error) {
 //state, nice
 type state struct {
 	module, pkg         string
-	schemaImportInfo    *astutil.ImportInfo
+	importSpec          *ast.ImportSpec
+	importInfo          astutil.ImportInfo
 	surveyColumnHeaders []string
 	choiceColumnHeaders []string
 	choices             map[string]ast.Expr
@@ -148,19 +148,11 @@ func (s *state) buildChoiceMap(rows [][]string) map[string][][]string {
 }
 
 func (s *state) newConjuctionOnNewLine(def string, sl ast.Expr, newLine bool) ast.Expr {
-	if s.schemaImportInfo != nil {
-		i := &ast.Ident{Name: s.schemaImportInfo.Ident}
-		if newLine {
-			i.NamePos = token.Newline.Pos()
-		}
-		return ast.NewBinExpr(token.AND, &ast.SelectorExpr{X: i, Sel: ast.NewIdent(fmt.Sprintf("#%s", def))}, sl)
-	} else {
-		i := &ast.Ident{Name: fmt.Sprintf("#%s", def)}
-		if newLine {
-			i.NamePos = token.Newline.Pos()
-		}
-		return ast.NewBinExpr(token.AND, i, sl)
+	i := &ast.Ident{Name: s.importInfo.Ident}
+	if newLine {
+		i.NamePos = token.Newline.Pos()
 	}
+	return ast.NewBinExpr(token.AND, &ast.SelectorExpr{X: i, Sel: ast.NewIdent(fmt.Sprintf("#%s", def))}, sl)
 }
 
 func (s *state) newConjuction(def string, sl ast.Expr) ast.Expr {
@@ -341,9 +333,7 @@ func (s *state) readSettingsSheet(rows [][]string) (*namedExpr, error) {
 func (s *state) getFileBytesFromNamedExpr(fields []*namedExpr) ([]byte, error) {
 	file := &ast.File{}
 	file.Decls = append(file.Decls, &ast.Package{Name: ast.NewIdent("main")})
-	if s.schemaImportInfo != nil {
-		file.Decls = append(file.Decls, &ast.ImportDecl{Specs: []*ast.ImportSpec{ast.NewImport(nil, fmt.Sprintf("%s/%s", s.module, s.pkg))}})
-	}
+	file.Decls = append(file.Decls, &ast.ImportDecl{Specs: []*ast.ImportSpec{s.importSpec}})
 	for _, field := range fields {
 		file.Decls = append(file.Decls, &ast.Field{Label: ast.NewIdent(field.name), Value: field.expr})
 	}
