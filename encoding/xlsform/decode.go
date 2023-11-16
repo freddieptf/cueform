@@ -24,19 +24,10 @@ func NewDecoder(r io.Reader) (*Decoder, error) {
 	return decoder, nil
 }
 
-func (d *Decoder) UseSchema(module, pkg string) error {
-	moduleName, err := getModuleName(module)
-	if err != nil {
-		return err
-	}
-	d.s.module, d.s.pkg = moduleName, pkg
-	importStr := d.s.module
-	if d.s.pkg != "" {
-		importStr = fmt.Sprintf("%s/%s", importStr, d.s.pkg)
-	}
-	d.s.importSpec = ast.NewImport(nil, importStr)
+func (d *Decoder) UsePkg(pkg string) (err error) {
+	d.s.importSpec = ast.NewImport(nil, pkg)
 	d.s.importInfo, err = astutil.ParseImportSpec(d.s.importSpec)
-	return err
+	return
 }
 
 func (d *Decoder) Decode() ([]byte, error) {
@@ -91,9 +82,8 @@ func (d *Decoder) Decode() ([]byte, error) {
 	return surveyBytes, nil
 }
 
-//state, nice
+// state, nice
 type state struct {
-	module, pkg         string
 	importSpec          *ast.ImportSpec
 	importInfo          astutil.ImportInfo
 	surveyColumnHeaders []string

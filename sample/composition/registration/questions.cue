@@ -1,6 +1,6 @@
 package registration
 
-import "github.com/freddieptf/cueform/schema/xlsform"
+import "github.com/freddieptf/cueform/xlsform"
 
 first_name: xlsform.#Question & {
 	type: "text"

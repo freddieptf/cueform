@@ -182,7 +182,7 @@ func (e *encodeState) encode(module, file string) (map[string][][]string, error)
 		elements  = []map[string]string{}
 	)
 	e.choiceFieldKeys = map[string]struct{}{}
-	val, err := loadFile(module, file)
+	val, err := loadFile(file)
 	if err != nil {
 		return nil, err
 	}
@@ -222,16 +222,11 @@ func setDefaultColumnWidth(sheet string, f *excelize.File) {
 
 type Encoder struct {
 	filePath string
-	module   string
 	e        encodeState
 }
 
 func NewEncoder(filePath string) *Encoder {
-	return &Encoder{filePath: filePath, module: ""}
-}
-
-func (encoder *Encoder) UseModule(path string) {
-	encoder.module = path
+	return &Encoder{filePath: filePath}
 }
 
 func (encoder *Encoder) Encode() (*bytes.Buffer, error) {
@@ -241,7 +236,7 @@ func (encoder *Encoder) Encode() (*bytes.Buffer, error) {
 			log.Println(err)
 		}
 	}()
-	result, err := encoder.e.encode(encoder.module, encoder.filePath)
+	result, err := encoder.e.encode("", encoder.filePath)
 	if err != nil {
 		return nil, err
 	}

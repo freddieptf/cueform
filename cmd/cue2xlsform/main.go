@@ -18,14 +18,6 @@ var (
 	outputDir string
 	module    string
 	pkg       string
-
-	moduleHelp = `path to module with the required schema definitions
-example, assuming you cloned github.com/freddieptf/cueform to the current directory
-	cue2xlsform --module ./cueform --file form.xlsx`
-	pkgHelp = `package in module that has the schema definitions
-example, if you're using schema/xlsform from github.com/freddieptf/cueform
-	cue2xlsform --module ./cueform --pkg schema/xlsform --file form.xlsx
-`
 )
 
 func writeFile(parentDir, file string, b []byte) (string, error) {
@@ -36,9 +28,8 @@ func writeFile(parentDir, file string, b []byte) (string, error) {
 
 func main() {
 	flag.StringVar(&file, "file", "", "path to xls or cue file")
-	flag.StringVar(&outputDir, "out", "", "output directory")
-	flag.StringVar(&module, "module", "", moduleHelp)
-	flag.StringVar(&pkg, "pkg", "", pkgHelp)
+	flag.StringVar(&outputDir, "out", "", "(optional) output directory")
+	flag.StringVar(&pkg, "pkg", "", `package that has the schema definitions`)
 	flag.Parse()
 
 	if file == "" {
@@ -50,7 +41,6 @@ func main() {
 
 	if strings.HasSuffix(fileName, ".cue") {
 		encoder := xlsform.NewEncoder(file)
-		encoder.UseModule(module)
 		f, err := encoder.Encode()
 		if err != nil {
 			log.Fatal(err)
@@ -74,7 +64,7 @@ func main() {
 		if err != nil {
 			log.Fatalf("err initializing decoder: %s", err)
 		}
-		err = decoder.UseSchema(module, pkg)
+		err = decoder.UsePkg(pkg)
 		if err != nil {
 			log.Fatalf("err during schema init: %s", err)
 		}

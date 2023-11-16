@@ -1,6 +1,6 @@
 package registration
 
-import "github.com/freddieptf/cueform/schema/xlsform"
+import "github.com/freddieptf/cueform/xlsform"
 
 person_registration: xlsform.#Group & {
 	type: "begin group"
