@@ -422,13 +422,14 @@ func TestSettingsToAst(t *testing.T) {
 				settingColumnHeaders: []string{"form_title", "form_id", "version", "default_language"},
 				settings:             [][]string{{"form", "id", "version", "English"}},
 			},
-			want: `form_settings: test.#Settings & {
-	type:             "settings"
-	form_title:       "form"
-	form_id:          "id"
-	version:          "version"
-	default_language: "English"
-}`,
+			want: `form_settings:
+	test.#Settings & {
+		type:             "settings"
+		form_title:       "form"
+		form_id:          "id"
+		version:          "version"
+		default_language: "English"
+	}`,
 		},
 	}
 	importInfo, _ := astutil.ParseImportSpec(ast.NewImport(nil, "test"))
