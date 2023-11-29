@@ -23,37 +23,37 @@ func TestValidXLSFormSheet(t *testing.T) {
 		{
 			name:          "fail if no survey columns",
 			columnHeaders: [][]string{},
-			sheet:         SurveySheetName,
+			sheet:         surveySheetName,
 			want:          ErrInvalidXLSForm,
 		},
 		{
 			name:          "fail if no choice columns",
 			columnHeaders: [][]string{},
-			sheet:         ChoiceSheetName,
+			sheet:         choiceSheetName,
 			want:          ErrInvalidXLSForm,
 		},
 		{
 			name:          "fail if invalid survey columns",
 			columnHeaders: [][]string{{"hello"}, {"world"}},
-			sheet:         SurveySheetName,
+			sheet:         surveySheetName,
 			want:          ErrInvalidXLSFormSheet,
 		},
 		{
 			name:          "fail if invalid choice columns",
 			columnHeaders: [][]string{{"hello"}, {"world"}},
-			sheet:         ChoiceSheetName,
+			sheet:         choiceSheetName,
 			want:          ErrInvalidXLSFormSheet,
 		},
 		{
 			name:          "pass if correct survey columns",
 			columnHeaders: [][]string{requiredSurveySheetColumns},
-			sheet:         SurveySheetName,
+			sheet:         surveySheetName,
 			want:          nil,
 		},
 		{
 			name:          "pass if correct choice columns",
 			columnHeaders: [][]string{requiredChoiceSheetColumns},
-			sheet:         ChoiceSheetName,
+			sheet:         choiceSheetName,
 			want:          nil,
 		},
 	}

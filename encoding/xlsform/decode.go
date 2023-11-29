@@ -20,9 +20,9 @@ var (
 	ErrInvalidXLSFormSheet = errors.New("found xlsform sheet missing a required column")
 	ErrInvalidLabel        = errors.New("found label column with no language code")
 
-	SurveySheetName   = "survey"
-	ChoiceSheetName   = "choices"
-	SettingsSheetName = "settings"
+	surveySheetName   = "survey"
+	choiceSheetName   = "choices"
+	settingsSheetName = "settings"
 
 	requiredSurveySheetColumns = []string{"type", "name", "label"}
 	requiredChoiceSheetColumns = []string{"list_name", "name", "label"}
@@ -91,10 +91,10 @@ func parseXLSForm(r io.Reader) (*xlsForm, error) {
 		}
 	}()
 	form := xlsForm{}
-	if surveyRows, err := f.GetRows(SurveySheetName); err != nil {
+	if surveyRows, err := f.GetRows(surveySheetName); err != nil {
 		return nil, fmt.Errorf("%v: %w", err, ErrInvalidXLSForm)
 	} else {
-		if err := validXLSFormSheet(SurveySheetName, surveyRows); err != nil {
+		if err := validXLSFormSheet(surveySheetName, surveyRows); err != nil {
 			return nil, err
 		}
 		form.surveyColumnHeaders = surveyRows[0]
@@ -102,10 +102,10 @@ func parseXLSForm(r io.Reader) (*xlsForm, error) {
 			form.survey = surveyRows[1:]
 		}
 	}
-	if choiceRows, err := f.GetRows(ChoiceSheetName); err != nil {
+	if choiceRows, err := f.GetRows(choiceSheetName); err != nil {
 		return nil, fmt.Errorf("%v: %w", err, ErrInvalidXLSForm)
 	} else {
-		if err := validXLSFormSheet(ChoiceSheetName, choiceRows); err != nil {
+		if err := validXLSFormSheet(choiceSheetName, choiceRows); err != nil {
 			return nil, err
 		}
 		form.choiceColumnHeaders = choiceRows[0]
@@ -113,8 +113,8 @@ func parseXLSForm(r io.Reader) (*xlsForm, error) {
 			form.choices = choiceRows[1:]
 		}
 	}
-	if settingsRows, err := f.GetRows(SettingsSheetName); err != nil {
-		if !errors.Is(err, excelize.ErrSheetNotExist{SheetName: SettingsSheetName}) {
+	if settingsRows, err := f.GetRows(settingsSheetName); err != nil {
+		if !errors.Is(err, excelize.ErrSheetNotExist{SheetName: settingsSheetName}) {
 			return nil, err
 		}
 		// settings is not required
@@ -135,7 +135,7 @@ func validXLSFormSheet(sheet string, rows [][]string) error {
 		return ErrInvalidXLSForm
 	}
 	columnHeaders := rows[0]
-	if sheet == SurveySheetName {
+	if sheet == surveySheetName {
 		for _, requiredCol := range requiredSurveySheetColumns {
 			match := slices.ContainsFunc(columnHeaders, func(s string) bool {
 				_, found := strings.CutPrefix(s, requiredCol)
@@ -146,7 +146,7 @@ func validXLSFormSheet(sheet string, rows [][]string) error {
 				return ErrInvalidXLSFormSheet
 			}
 		}
-	} else if sheet == ChoiceSheetName {
+	} else if sheet == choiceSheetName {
 		for _, requiredCol := range requiredChoiceSheetColumns {
 			match := slices.ContainsFunc(columnHeaders, func(s string) bool {
 				_, found := strings.CutPrefix(s, requiredCol)
