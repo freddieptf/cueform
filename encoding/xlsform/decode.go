@@ -33,18 +33,22 @@ type Decoder struct {
 	importInfo astutil.ImportInfo
 }
 
+// NewDecoder returns a new decoder that uses pkg as the xlsform schema definition package
 func NewDecoder(pkg string) (*Decoder, error) {
 	decoder := &Decoder{}
 	err := decoder.UsePkg(pkg)
 	return decoder, err
 }
 
+// UsePkg changes the package we import schema definitions from
+// the package should ofcourse contain all the required element schema definitions
 func (d *Decoder) UsePkg(pkg string) (err error) {
 	d.importSpec = ast.NewImport(nil, pkg)
 	d.importInfo, err = astutil.ParseImportSpec(d.importSpec)
 	return err
 }
 
+// Decode returns the CUE encoding of r
 func (d *Decoder) Decode(r io.Reader) ([]byte, error) {
 	form, err := parseXLSForm(r)
 	if err != nil {
