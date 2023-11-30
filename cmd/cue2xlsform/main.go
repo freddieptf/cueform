@@ -60,15 +60,11 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		decoder, err := xlsform.NewDecoder(fReader)
+		decoder, err := xlsform.NewDecoder(pkg)
 		if err != nil {
 			log.Fatalf("err initializing decoder: %s", err)
 		}
-		err = decoder.UsePkg(pkg)
-		if err != nil {
-			log.Fatalf("err during schema init: %s", err)
-		}
-		surveyBytes, err := decoder.Decode()
+		surveyBytes, err := decoder.Decode(fReader)
 		if err != nil {
 			log.Fatal(err)
 		}
