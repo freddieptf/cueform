@@ -40,8 +40,8 @@ func main() {
 	fileName := filepath.Base(file)
 
 	if strings.HasSuffix(fileName, ".cue") {
-		encoder := xlsform.NewEncoder(file)
-		f, err := encoder.Encode()
+		encoder := xlsform.NewEncoder()
+		f, err := encoder.Encode(file)
 		if err != nil {
 			log.Fatal(err)
 		}

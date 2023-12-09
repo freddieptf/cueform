@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"reflect"
 	"sort"
+	"strings"
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
@@ -18,6 +19,15 @@ func indexOf[K interface{}](arr []K, val K) int {
 		}
 	}
 	return -1
+}
+
+func isTranslatableColumn(arr []string, column string) bool {
+	for _, item := range arr {
+		if strings.HasPrefix(column, item) {
+			return true
+		}
+	}
+	return false
 }
 
 func loadFile(path string) (*cue.Value, error) {

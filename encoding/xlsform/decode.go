@@ -107,7 +107,12 @@ func parseXLSForm(r io.Reader) (*xlsForm, error) {
 		}
 	}
 	if choiceRows, err := f.GetRows(choiceSheetName); err != nil {
-		return nil, fmt.Errorf("%v: %w", err, ErrInvalidXLSForm)
+		if !errors.Is(err, excelize.ErrSheetNotExist{SheetName: choiceSheetName}) {
+			return nil, err
+		}
+		// choices is not required
+		log.Println(err)
+
 	} else {
 		if err := validXLSFormSheet(choiceSheetName, choiceRows); err != nil {
 			return nil, err
@@ -124,6 +129,9 @@ func parseXLSForm(r io.Reader) (*xlsForm, error) {
 		// settings is not required
 		log.Println(err)
 	} else {
+		if err := validXLSFormSheet(settingsSheetName, settingsRows); err != nil {
+			return nil, err
+		}
 		form.settingColumnHeaders = settingsRows[0]
 		if len(settingsRows) > 1 {
 			form.settings = settingsRows[1:]
