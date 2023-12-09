@@ -18,7 +18,7 @@ import (
 var (
 	ErrInvalidXLSForm      = errors.New("xlsform structure is incorrect")
 	ErrInvalidXLSFormSheet = errors.New("found xlsform sheet missing a required column")
-	ErrInvalidLabel        = errors.New("found label column with no language code")
+	ErrInvalidLabel        = errors.New("found translatable column with no language code")
 
 	surveySheetName   = "survey"
 	choiceSheetName   = "choices"
