@@ -461,25 +461,25 @@ import "test"
 
 family_name:
 	test.#Question & {
-		type:            "text"
-		name:            "family_name"
-		"label:English": "What's your family name?"
+		type: "text"
+		name: "family_name"
+		label: "English (en)": "What's your family name?"
 	}
 father:
 	test.#Group & {
-		type:            "begin_group"
-		name:            "father"
-		"label:English": "Father"
+		type: "begin_group"
+		name: "father"
+		label: "English (en)": "Father"
 		children: [
 			test.#Question & {
-				type:            "phone number"
-				name:            "phone_number"
-				"label:English": "What's your father's phone number?"
+				type: "phone number"
+				name: "phone_number"
+				label: "English (en)": "What's your father's phone number?"
 			},
 			test.#Question & {
-				type:            "integer"
-				name:            "age"
-				"label:English": "How old is your father?"
+				type: "integer"
+				name: "age"
+				label: "English (en)": "How old is your father?"
 			},
 		]
 	}
@@ -502,35 +502,35 @@ import "test"
 
 family_name:
 	test.#Question & {
-		type:            "text"
-		name:            "family_name"
-		"label:English": "What's your family name?"
+		type: "text"
+		name: "family_name"
+		label: "English (en)": "What's your family name?"
 	}
 father:
 	test.#Group & {
-		type:            "begin_group"
-		name:            "father"
-		"label:English": "Father"
+		type: "begin_group"
+		name: "father"
+		label: "English (en)": "Father"
 		children: [
 			test.#Question & {
-				type:            "phone number"
-				name:            "phone_number"
-				"label:English": "What's your father's phone number?"
+				type: "phone number"
+				name: "phone_number"
+				label: "English (en)": "What's your father's phone number?"
 			},
 			test.#Question & {
-				type:            "integer"
-				name:            "age"
-				"label:English": "How old is your father?"
+				type: "integer"
+				name: "age"
+				label: "English (en)": "How old is your father?"
 			},
 			test.#Group & {
-				type:            "begin_group"
-				name:            "next_of_kin"
-				"label:English": "Father’s Next of Kin"
+				type: "begin_group"
+				name: "next_of_kin"
+				label: "English (en)": "Father’s Next of Kin"
 				children: [
 					test.#Question & {
-						type:            "phone number"
-						name:            "nok_phone_number"
-						"label:English": "What's your father's next of kin phone number?"
+						type: "phone number"
+						name: "nok_phone_number"
+						label: "English (en)": "What's your father's next of kin phone number?"
 					},
 				]
 			},
