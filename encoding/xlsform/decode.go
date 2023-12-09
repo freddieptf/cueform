@@ -18,7 +18,7 @@ import (
 var (
 	ErrInvalidXLSForm      = errors.New("xlsform structure is incorrect")
 	ErrInvalidXLSFormSheet = errors.New("found xlsform sheet missing a required column")
-	ErrInvalidLabel        = errors.New("found label column with no language code")
+	ErrInvalidLabel        = errors.New("found translatable column with no language code")
 
 	surveySheetName   = "survey"
 	choiceSheetName   = "choices"
@@ -283,10 +283,11 @@ func buildSurveyElement(nl bool, columnHeaders []string, row []string, choiceMap
 			raw := strings.SplitAfterN(row[idx], " ", 2)
 			qtype, choice := strings.TrimSpace(raw[0]), strings.TrimSpace(raw[1])
 			element.Elts = append(element.Elts, &ast.Field{Label: ast.NewIdent(header), Value: ast.NewString(qtype)}, &ast.Field{Label: ast.NewIdent("choices"), Value: choiceMap[choice]})
-		} else if indexOf(translatableCols, header) != -1 {
-			return nil, fmt.Errorf("missing lang code %s: %w", header, ErrInvalidLabel)
-		} else if match := langRe.FindStringSubmatch(header); len(match) == 3 && indexOf(translatableCols, match[1]) != -1 {
+		} else if isTranslatableColumn(translatableCols, header) {
 			match := langRe.FindStringSubmatch(header)
+			if len(match) != 3 || indexOf(translatableCols, match[1]) == -1 {
+				return nil, fmt.Errorf("missing lang code %s: %w", header, ErrInvalidLabel)
+			}
 			col, lang := match[1], match[2]
 			if translatables[col] == nil {
 				labels := ast.NewStruct()
