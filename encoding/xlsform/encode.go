@@ -3,7 +3,6 @@ package xlsform
 import (
 	"bytes"
 	"fmt"
-	"log"
 	"regexp"
 	"strings"
 
@@ -13,7 +12,7 @@ import (
 
 var (
 	langRe           = regexp.MustCompile(`(?P<column>\w+)::(?P<lang>.+)`)
-	translatableCols = []string{"label", "required_message", "constraint_message", "hint"}
+	TranslatableCols = []string{"label", "required_message", "constraint_message", "hint"}
 	surveyColumns    = []string{"type", "name", "label", "required", "required_message", "relevant", "repeat_count", "constraint", "constraint_message", "hint", "choice_filter", "read_only", "calculation", "appearance", "default"}
 	choiceColumns    = []string{"list_name", "name", "label"}
 	settingColumns   = []string{"form_title", "form_id", "public_key", "submission_url", "default_language", "style", "version", "instance_name"}
@@ -25,10 +24,14 @@ type cueform struct {
 }
 
 func parseCueForm(file string) (*cueform, error) {
-	val, err := loadFile(file)
+	val, err := LoadFile(file)
 	if err != nil {
 		return nil, err
 	}
+	return parseCueFormFromVal(val)
+}
+
+func parseCueFormFromVal(val *cue.Value) (*cueform, error) {
 	form := &cueform{surveyElements: []*cue.Value{}}
 	fieldIter, err := getIter(val)
 	if err != nil {
@@ -45,26 +48,80 @@ func parseCueForm(file string) (*cueform, error) {
 	return form, nil
 }
 
-func (c *cueform) toSurvey() ([]map[string]string, []map[string]string, error) {
+func (c *cueform) toXLSForm() (*xlsForm, error) {
 	survey := []map[string]string{}
 	choices := []map[string]string{}
+	state := &encodeState{
+		surveyColHeaders: make(map[string]struct{}),
+		choiceColHeaders: make(map[string]struct{}),
+	}
+
 	for _, element := range c.surveyElements {
-		err := elementToRows(element, &survey, &choices)
+		err := state.elementToRows(element, &survey, &choices)
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 	}
-	return survey, choices, nil
+
+	orderSurveyColHeaders := getHeadersInOrder(state.surveyColHeaders, surveyColumns)
+	surveyRows := [][]string{}
+	for _, element := range survey {
+		row := make([]string, len(orderSurveyColHeaders))
+		for key, val := range element {
+			row[indexOf(orderSurveyColHeaders, key)] = val
+		}
+		surveyRows = append(surveyRows, row)
+	}
+
+	form := &xlsForm{surveyColumnHeaders: orderSurveyColHeaders, survey: surveyRows}
+
+	if len(choices) > 0 {
+		orderedChoiceColHeaders := getHeadersInOrder(state.choiceColHeaders, choiceColumns)
+		choiceRows := [][]string{}
+		for _, element := range choices {
+			row := make([]string, len(orderedChoiceColHeaders))
+			for key, val := range element {
+				row[indexOf(orderedChoiceColHeaders, key)] = val
+			}
+			choiceRows = append(choiceRows, row)
+		}
+		form.choiceColumnHeaders = orderedChoiceColHeaders
+		form.choices = choiceRows
+	}
+
+	if c.settings != nil {
+		settingHeaders := map[string]struct{}{}
+		row, err := fieldsToRow(c.settings, settingHeaders)
+		if err != nil {
+			return nil, err
+		}
+		delete(row, "type")
+		delete(settingHeaders, "type")
+		orderedSettingColHeaders := getHeadersInOrder(settingHeaders, settingColumns)
+		settings := make([]string, len(orderedSettingColHeaders))
+		for k, v := range row {
+			settings[indexOf(orderedSettingColHeaders, k)] = v
+		}
+		form.settingColumnHeaders = orderedSettingColHeaders
+		form.settings = [][]string{settings}
+	}
+
+	return form, nil
 }
 
-func elementToRows(val *cue.Value, rows *[]map[string]string, choices *[]map[string]string) error {
+type encodeState struct {
+	surveyColHeaders map[string]struct{}
+	choiceColHeaders map[string]struct{}
+}
+
+func (e *encodeState) elementToRows(val *cue.Value, rows *[]map[string]string, choices *[]map[string]string) error {
 	elementTypeVal := val.LookupPath(cue.ParsePath("type"))
 	elementType, err := elementTypeVal.String()
 	if err != nil {
 		return err
 	}
 
-	row, err := fieldsToRow(val)
+	row, err := fieldsToRow(val, e.surveyColHeaders)
 	if err != nil {
 		return err
 	}
@@ -72,7 +129,7 @@ func elementToRows(val *cue.Value, rows *[]map[string]string, choices *[]map[str
 
 	if strings.HasPrefix(elementType, "select_") {
 		choiceStruct := val.LookupPath(cue.ParsePath("choices"))
-		c, err := choiceStructToRows(&choiceStruct)
+		c, err := choiceStructToRows(&choiceStruct, e.choiceColHeaders)
 		if err != nil {
 			return err
 		}
@@ -88,7 +145,7 @@ func elementToRows(val *cue.Value, rows *[]map[string]string, choices *[]map[str
 			}
 			for iter.Next() {
 				child := iter.Value()
-				elementToRows(&child, rows, choices)
+				e.elementToRows(&child, rows, choices)
 			}
 		}
 		endTag := fmt.Sprintf("end_%s", strings.TrimPrefix(elementType, "begin_"))
@@ -97,7 +154,7 @@ func elementToRows(val *cue.Value, rows *[]map[string]string, choices *[]map[str
 	return nil
 }
 
-func fieldsToRow(val *cue.Value) (map[string]string, error) {
+func fieldsToRow(val *cue.Value, keys map[string]struct{}) (map[string]string, error) {
 	elIter, err := val.Fields()
 	if err != nil {
 		return nil, err
@@ -108,7 +165,7 @@ func fieldsToRow(val *cue.Value) (map[string]string, error) {
 		if key == "children" || key == "choices" {
 			continue
 		}
-		if isTranslatableColumn(translatableCols, key) {
+		if isTranslatableColumn(TranslatableCols, key) {
 			langsIter, err := elIter.Value().Fields()
 			if err != nil {
 				return nil, err
@@ -119,6 +176,7 @@ func fieldsToRow(val *cue.Value) (map[string]string, error) {
 				if err != nil {
 					return nil, err
 				}
+				keys[labelHeader] = struct{}{}
 			}
 		} else {
 			keyVal, err := elIter.Value().String()
@@ -135,12 +193,13 @@ func fieldsToRow(val *cue.Value) (map[string]string, error) {
 			} else {
 				result[key] = keyVal
 			}
+			keys[key] = struct{}{}
 		}
 	}
 	return result, nil
 }
 
-func choiceStructToRows(val *cue.Value) ([]map[string]string, error) {
+func choiceStructToRows(val *cue.Value, keys map[string]struct{}) ([]map[string]string, error) {
 	el := val.Value()
 	listName, err := el.LookupPath(cue.ParsePath("list_name")).String()
 	if err != nil {
@@ -161,10 +220,12 @@ func choiceStructToRows(val *cue.Value) ([]map[string]string, error) {
 			key := choiceIter.Label()
 			element := map[string]string{}
 			element["list_name"] = listName
+			keys["list_name"] = struct{}{}
 			switch key {
 			case "filterCategory":
 			default:
 				element["name"] = key
+				keys["name"] = struct{}{}
 				choiceStructIter, err := choiceIter.Value().Fields()
 				if err != nil {
 					return nil, err
@@ -175,79 +236,13 @@ func choiceStructToRows(val *cue.Value) ([]map[string]string, error) {
 					if err != nil {
 						return nil, err
 					}
+					keys[labelKey] = struct{}{}
 				}
 			}
 			elements = append(elements, element)
 		}
 	}
 	return elements, nil
-}
-
-func encode(file string) (map[string][][]string, error) {
-	form, err := parseCueForm(file)
-	if err != nil {
-		return nil, err
-	}
-
-	survey, choices, err := form.toSurvey()
-	if err != nil {
-		return nil, err
-	}
-	surveyKeys := map[string]struct{}{}
-	for _, row := range survey {
-		for k := range row {
-			surveyKeys[k] = struct{}{}
-		}
-	}
-	surveyHeaders := getHeadersInOrder(surveyKeys, surveyColumns)
-	surveyRows := [][]string{surveyHeaders}
-	for _, element := range survey {
-		row := make([]string, len(surveyHeaders))
-		for key, val := range element {
-			row[indexOf(surveyHeaders, key)] = val
-		}
-		surveyRows = append(surveyRows, row)
-	}
-
-	var choiceRows [][]string
-	if len(choices) > 0 {
-		choiceKeys := map[string]struct{}{}
-		for _, row := range choices {
-			for k := range row {
-				choiceKeys[k] = struct{}{}
-			}
-		}
-		choiceHeaders := getHeadersInOrder(choiceKeys, choiceColumns)
-		choiceRows = append(choiceRows, choiceHeaders)
-		for _, element := range choices {
-			row := make([]string, len(choiceHeaders))
-			for key, val := range element {
-				row[indexOf(choiceHeaders, key)] = val
-			}
-			choiceRows = append(choiceRows, row)
-		}
-	}
-
-	var settingRows [][]string
-	if form.settings != nil {
-		row, err := fieldsToRow(form.settings)
-		if err != nil {
-			return nil, err
-		}
-		delete(row, "type")
-		settingHeaders := map[string]struct{}{}
-		for k := range row {
-			settingHeaders[k] = struct{}{}
-		}
-		headers := getHeadersInOrder(settingHeaders, settingColumns)
-		settings := make([]string, len(headers))
-		for k, v := range row {
-			settings[indexOf(headers, k)] = v
-		}
-		settingRows = append(settingRows, headers, settings)
-	}
-
-	return map[string][][]string{surveySheetName: surveyRows, choiceSheetName: choiceRows, settingsSheetName: settingRows}, nil
 }
 
 func setDefaultColumnWidth(sheet string, f *excelize.File) {
@@ -266,31 +261,13 @@ func NewEncoder() *Encoder {
 
 // Encode returns XLSForm equivalent of the CUE file at filePath
 func (encoder *Encoder) Encode(filePath string) (*bytes.Buffer, error) {
-	result, err := encode(filePath)
+	source, err := parseCueForm(filePath)
 	if err != nil {
 		return nil, err
 	}
-	formFile := excelize.NewFile()
-	defer func() {
-		if err := formFile.Close(); err != nil {
-			log.Println(err)
-		}
-	}()
-	for _, sheet := range []string{surveySheetName, choiceSheetName, settingsSheetName} {
-		if len(result[sheet]) > 0 {
-			_, err := formFile.NewSheet(sheet)
-			if err != nil {
-				return nil, err
-			}
-			setDefaultColumnWidth(sheet, formFile)
-			for idx, row := range result[sheet] {
-				err = formFile.SetSheetRow(sheet, fmt.Sprintf("A%d", idx+1), &row)
-				if err != nil {
-					return nil, err
-				}
-			}
-		}
+	xlsform, err := source.toXLSForm()
+	if err != nil {
+		return nil, err
 	}
-	formFile.DeleteSheet("Sheet1")
-	return formFile.WriteToBuffer()
+	return xlsform.WriteToBuffer()
 }

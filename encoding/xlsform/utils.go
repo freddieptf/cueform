@@ -30,7 +30,18 @@ func isTranslatableColumn(arr []string, column string) bool {
 	return false
 }
 
-func loadFile(path string) (*cue.Value, error) {
+func GetLangFromCol(translatableColumn string) (col string, lang string, err error) {
+	match := langRe.FindStringSubmatch(translatableColumn)
+	if len(match) != 3 || indexOf(TranslatableCols, match[1]) == -1 {
+		err = fmt.Errorf("missing lang code %s: %w", translatableColumn, ErrInvalidLabel)
+		return
+	}
+	col = match[1]
+	lang = match[2]
+	return
+}
+
+func LoadFile(path string) (*cue.Value, error) {
 	ctx := cuecontext.New()
 	bis := load.Instances([]string{path}, &load.Config{ModuleRoot: ""})
 	bi := bis[0]

@@ -60,10 +60,7 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		decoder, err := xlsform.NewDecoder(pkg)
-		if err != nil {
-			log.Fatalf("err initializing decoder: %s", err)
-		}
+		decoder := xlsform.NewDecoder(pkg)
 		surveyBytes, err := decoder.Decode(fReader)
 		if err != nil {
 			log.Fatal(err)

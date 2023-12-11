@@ -174,7 +174,7 @@ father:
 				label: "English (en)": "Father’s Next of Kin"
 				children: [
 					test.#Question & {
-						type:    "select_one"
+						type: "select_one"
 						choices: test.#Choices & {
 							list_name: "yes_no"
 							choices: [
@@ -203,7 +203,7 @@ form_settings:
 			err: nil,
 		},
 	}
-	decoder, _ := NewDecoder("test")
+	decoder := NewDecoder("test")
 	for _, tc := range testCases {
 		t.Run(tc.file, func(t *testing.T) {
 			content, err := os.Open(tc.file)

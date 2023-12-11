@@ -1,6 +1,7 @@
 package xlsform
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -29,23 +30,18 @@ var (
 )
 
 type Decoder struct {
-	importSpec *ast.ImportSpec
-	importInfo astutil.ImportInfo
+	schemaPkg string
 }
 
 // NewDecoder returns a new decoder that uses pkg as the xlsform schema definition package
-func NewDecoder(pkg string) (*Decoder, error) {
-	decoder := &Decoder{}
-	err := decoder.UsePkg(pkg)
-	return decoder, err
+func NewDecoder(pkg string) *Decoder {
+	return &Decoder{schemaPkg: pkg}
 }
 
 // UsePkg changes the package we import schema definitions from
 // the package should ofcourse contain all the required element schema definitions
-func (d *Decoder) UsePkg(pkg string) (err error) {
-	d.importSpec = ast.NewImport(nil, pkg)
-	d.importInfo, err = astutil.ParseImportSpec(d.importSpec)
-	return err
+func (d *Decoder) UsePkg(schemaPkg string) {
+	d.schemaPkg = schemaPkg
 }
 
 // Decode returns the CUE encoding of r
@@ -54,19 +50,9 @@ func (d *Decoder) Decode(r io.Reader) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	choiceMap, err := form.choicesToAst(d.importInfo)
+	file, err := form.toAstFile(ast.NewImport(nil, d.schemaPkg))
 	if err != nil {
 		return nil, err
-	}
-	root := ast.NewStruct()
-	_, err = form.surveyToAst(d.importInfo, root, 0, choiceMap)
-	if err != nil {
-		return nil, err
-	}
-	file := d.surveyAstToFile(root)
-	settings := form.settingsToAst(d.importInfo)
-	if settings != nil {
-		file.Decls = append(file.Decls, settings)
 	}
 	return format.Node(file, format.Simplify())
 }
@@ -151,10 +137,12 @@ func validXLSFormSheet(sheet string, rows [][]string) error {
 		for _, requiredCol := range requiredSurveySheetColumns {
 			match := slices.ContainsFunc(columnHeaders, func(s string) bool {
 				_, found := strings.CutPrefix(s, requiredCol)
+				if !found {
+					log.Println("no match", s, requiredCol)
+				}
 				return found
 			})
 			if !match {
-				fmt.Println("no match")
 				return ErrInvalidXLSFormSheet
 			}
 		}
@@ -162,15 +150,57 @@ func validXLSFormSheet(sheet string, rows [][]string) error {
 		for _, requiredCol := range requiredChoiceSheetColumns {
 			match := slices.ContainsFunc(columnHeaders, func(s string) bool {
 				_, found := strings.CutPrefix(s, requiredCol)
+				if !found {
+					log.Println("no match", s, requiredCol)
+				}
 				return found
 			})
 			if !match {
-				fmt.Println("no match")
 				return ErrInvalidXLSFormSheet
 			}
 		}
 	}
 	return nil
+}
+
+func (form *xlsForm) toAstFile(i *ast.ImportSpec) (*ast.File, error) {
+	importInfo, err := astutil.ParseImportSpec(i)
+	if err != nil {
+		return nil, err
+	}
+	choiceMap, err := form.choicesToAst(importInfo)
+	if err != nil {
+		return nil, err
+	}
+	root := ast.NewStruct()
+	_, err = form.surveyToAst(importInfo, root, 0, choiceMap)
+	if err != nil {
+		return nil, err
+	}
+	decls := []ast.Decl{&ast.Package{Name: ast.NewIdent("main")}, &ast.ImportDecl{Specs: []*ast.ImportSpec{i}}}
+	for _, c := range root.Elts[0].(*ast.Field).Value.(*ast.ListLit).Elts {
+		v := c.(*ast.BinaryExpr)
+		if len(v.Y.(*ast.StructLit).Elts) <= 1 {
+			continue
+		}
+		var nameField *ast.Field
+		for _, el := range v.Y.(*ast.StructLit).Elts {
+			switch v := el.(type) {
+			case *ast.Field:
+				if name, _, _ := ast.LabelName(v.Label); name == "name" {
+					nameField = v
+					break
+				}
+			}
+		}
+		nameValue := nameField.Value.(*ast.BasicLit)
+		decls = append(decls, &ast.Field{Label: nameValue, Value: v})
+	}
+	settings := form.settingsToAst(importInfo)
+	if settings != nil {
+		decls = append(decls, settings)
+	}
+	return &ast.File{Decls: decls}, nil
 }
 
 // choicesToAst converts rows from the choice sheet to CUE expressions
@@ -283,12 +313,11 @@ func buildSurveyElement(nl bool, columnHeaders []string, row []string, choiceMap
 			raw := strings.SplitAfterN(row[idx], " ", 2)
 			qtype, choice := strings.TrimSpace(raw[0]), strings.TrimSpace(raw[1])
 			element.Elts = append(element.Elts, &ast.Field{Label: ast.NewIdent(header), Value: ast.NewString(qtype)}, &ast.Field{Label: ast.NewIdent("choices"), Value: choiceMap[choice]})
-		} else if isTranslatableColumn(translatableCols, header) {
-			match := langRe.FindStringSubmatch(header)
-			if len(match) != 3 || indexOf(translatableCols, match[1]) == -1 {
-				return nil, fmt.Errorf("missing lang code %s: %w", header, ErrInvalidLabel)
+		} else if isTranslatableColumn(TranslatableCols, header) {
+			col, lang, err := GetLangFromCol(header)
+			if err != nil {
+				return nil, err
 			}
-			col, lang := match[1], match[2]
 			if translatables[col] == nil {
 				labels := ast.NewStruct()
 				element.Elts = append(element.Elts, &ast.Field{Label: ast.NewIdent(col), Value: labels})
@@ -302,34 +331,6 @@ func buildSurveyElement(nl bool, columnHeaders []string, row []string, choiceMap
 	return &element, nil
 }
 
-// surveyAstToFile converts the root survey struct to a proper CUE file
-func (d *Decoder) surveyAstToFile(root *ast.StructLit) *ast.File {
-	file := &ast.File{}
-	file.Decls = append(file.Decls, &ast.Package{Name: ast.NewIdent("main")})
-	file.Decls = append(file.Decls, &ast.ImportDecl{Specs: []*ast.ImportSpec{d.importSpec}})
-	topLevelElements := root.Elts[0].(*ast.Field).Value.(*ast.ListLit)
-	for _, c := range topLevelElements.Elts {
-		v := c.(*ast.BinaryExpr)
-		if len(v.Y.(*ast.StructLit).Elts) <= 1 {
-			continue
-		}
-		var nameField *ast.Field
-		for _, el := range v.Y.(*ast.StructLit).Elts {
-			switch v := el.(type) {
-			case *ast.Field:
-				if name, _, _ := ast.LabelName(v.Label); name == "name" {
-					nameField = v
-					break
-				}
-			}
-		}
-		nameValue := nameField.Value.(*ast.BasicLit)
-		file.Decls = append(file.Decls, &ast.Field{Label: nameValue, Value: v})
-
-	}
-	return file
-}
-
 func (form *xlsForm) settingsToAst(importInfo astutil.ImportInfo) *ast.Field {
 	if len(form.settings) != 1 {
 		return nil
@@ -339,6 +340,49 @@ func (form *xlsForm) settingsToAst(importInfo astutil.ImportInfo) *ast.Field {
 		settings.Elts = append(settings.Elts, &ast.Field{Label: ast.NewIdent(header), Value: ast.NewString(form.settings[0][idx])})
 	}
 	return &ast.Field{Label: ast.NewIdent("form_settings"), Value: newConjuction(importInfo, "Settings", settings)}
+}
+
+func (form *xlsForm) WriteToBuffer() (*bytes.Buffer, error) {
+	formFile := excelize.NewFile()
+	defer func() {
+		if err := formFile.Close(); err != nil {
+			log.Println(err)
+		}
+	}()
+	err := writeSheet(formFile, surveySheetName, form.surveyColumnHeaders, form.survey)
+	if err != nil {
+		return nil, err
+	}
+	if len(form.choices) > 0 {
+		err = writeSheet(formFile, choiceSheetName, form.choiceColumnHeaders, form.choices)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if len(form.settings) > 0 {
+		err = writeSheet(formFile, settingsSheetName, form.settingColumnHeaders, form.settings)
+		if err != nil {
+			return nil, err
+		}
+	}
+	formFile.DeleteSheet("Sheet1")
+	return formFile.WriteToBuffer()
+}
+
+func writeSheet(f *excelize.File, sheet string, headers []string, rows [][]string) error {
+	_, err := f.NewSheet(sheet)
+	if err != nil {
+		return err
+	}
+	setDefaultColumnWidth(sheet, f)
+	f.SetSheetRow(sheet, "A1", &headers)
+	for idx, row := range rows {
+		err = f.SetSheetRow(sheet, fmt.Sprintf("A%d", idx+2), &row)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func newConjuctionOnNewLine(info astutil.ImportInfo, def string, sl ast.Expr, newLine bool) ast.Expr {
