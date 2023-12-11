@@ -1,3 +1,5 @@
 .cue
 .xlsx
 .env*
+/gomod2nix-template
+result
