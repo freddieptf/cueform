@@ -21,8 +21,8 @@ func indexOf[K interface{}](arr []K, val K) int {
 	return -1
 }
 
-func isTranslatableColumn(arr []string, column string) bool {
-	for _, item := range arr {
+func IsTranslatableColumn(column string) bool {
+	for _, item := range TranslatableCols {
 		if strings.HasPrefix(column, item) {
 			return true
 		}

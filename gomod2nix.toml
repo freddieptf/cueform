@@ -40,6 +40,9 @@ schema = 3
   [mod."github.com/richardlehane/msoleps"]
     version = "v1.0.3"
     hash = "sha256-yhEs8J22cefdP4VqCw4KnBhjRwSvP7FwD467+xe8iCU="
+  [mod."github.com/sqids/sqids-go"]
+    version = "v0.4.1"
+    hash = "sha256-NNmbxjjvX/g+JGrn1ImXGuVDXkpKzs8oHrZ9YAGYp7g="
   [mod."github.com/xuri/efp"]
     version = "v0.0.0-20231025114914-d1ff6096ae53"
     hash = "sha256-1HqDP/Wu9Q+/tgg7a3dGB5MiC6pJgIUiL1JhyP0LEkI="
