@@ -18,10 +18,11 @@
         in
         {
           packages.default = buildGoApplication {
-            pname = "cue2xlsform";
+            pname = "cueform";
             version = "0.1";
             src = ./.;
-            subPackages = [ "cmd/cue2xlsform" ];
+            pwd = ./.;
+            subPackages = [ "cmd/cueform" ];
             modules = ./gomod2nix.toml;
           };
           devShells.default = pkgs.mkShell {
