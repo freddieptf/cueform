@@ -8,5 +8,5 @@ import (
 
 func main() {
 	ctx := context.Background()
-	cmd.ExecCueform(ctx)
+	cmd.ExecCue2FormCmd(ctx)
 }
