@@ -18,21 +18,21 @@ var (
 	settingColumns   = []string{"form_title", "form_id", "public_key", "submission_url", "default_language", "style", "version", "instance_name"}
 )
 
-type cueform struct {
-	surveyElements []*cue.Value
-	settings       *cue.Value
+type CueForm struct {
+	SurveyElements []*cue.Value
+	Settings       *cue.Value
 }
 
-func parseCueForm(file string) (*cueform, error) {
+func ParseCueForm(file string) (*CueForm, error) {
 	val, err := LoadFile(file)
 	if err != nil {
 		return nil, err
 	}
-	return parseCueFormFromVal(val)
+	return ParseCueFormFromVal(val)
 }
 
-func parseCueFormFromVal(val *cue.Value) (*cueform, error) {
-	form := &cueform{surveyElements: []*cue.Value{}}
+func ParseCueFormFromVal(val *cue.Value) (*CueForm, error) {
+	form := &CueForm{SurveyElements: []*cue.Value{}}
 	fieldIter, err := getIter(val)
 	if err != nil {
 		return nil, err
@@ -40,15 +40,15 @@ func parseCueFormFromVal(val *cue.Value) (*cueform, error) {
 	for fieldIter.Next() {
 		element := fieldIter.Value()
 		if l, _ := element.Label(); l == "form_settings" {
-			form.settings = &element
+			form.Settings = &element
 		} else {
-			form.surveyElements = append(form.surveyElements, &element)
+			form.SurveyElements = append(form.SurveyElements, &element)
 		}
 	}
 	return form, nil
 }
 
-func (c *cueform) toXLSForm() (*xlsForm, error) {
+func (c *CueForm) toXLSForm() (*xlsForm, error) {
 	survey := []map[string]string{}
 	choices := []map[string]string{}
 	state := &encodeState{
@@ -56,7 +56,7 @@ func (c *cueform) toXLSForm() (*xlsForm, error) {
 		choiceColHeaders: make(map[string]struct{}),
 	}
 
-	for _, element := range c.surveyElements {
+	for _, element := range c.SurveyElements {
 		err := state.elementToRows(element, &survey, &choices)
 		if err != nil {
 			return nil, err
@@ -89,9 +89,9 @@ func (c *cueform) toXLSForm() (*xlsForm, error) {
 		form.choices = choiceRows
 	}
 
-	if c.settings != nil {
+	if c.Settings != nil {
 		settingHeaders := map[string]struct{}{}
-		row, err := fieldsToRow(c.settings, settingHeaders)
+		row, err := fieldsToRow(c.Settings, settingHeaders)
 		if err != nil {
 			return nil, err
 		}
@@ -165,7 +165,7 @@ func fieldsToRow(val *cue.Value, keys map[string]struct{}) (map[string]string, e
 		if key == "children" || key == "choices" {
 			continue
 		}
-		if isTranslatableColumn(TranslatableCols, key) {
+		if IsTranslatableColumn(key) {
 			langsIter, err := elIter.Value().Fields()
 			if err != nil {
 				return nil, err
@@ -261,7 +261,7 @@ func NewEncoder() *Encoder {
 
 // Encode returns XLSForm equivalent of the CUE file at filePath
 func (encoder *Encoder) Encode(filePath string) (*bytes.Buffer, error) {
-	source, err := parseCueForm(filePath)
+	source, err := ParseCueForm(filePath)
 	if err != nil {
 		return nil, err
 	}
