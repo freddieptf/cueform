@@ -46,13 +46,13 @@ package xlsform
 }
 
 #Settings: {
-	form_title:        string
-	form_id:           string
-	public_key?:       string
-	submission_url?:   string
-	default_language?: string
-	style:             string
-	version?:          string
-	instance_name?:    string
+	form_title:       string
+	form_id:          string
+	public_key?:      string
+	submission_url?:  string
+	default_language: string
+	style?:           string
+	version:          string
+	instance_name?:   string
 	...
 }
