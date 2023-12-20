@@ -2,6 +2,8 @@ package labels
 
 import (
 	"reflect"
+	"sort"
+	"strings"
 	"testing"
 
 	"cuelang.org/go/cue/load"
@@ -18,40 +20,69 @@ func TestBuildFiles(t *testing.T) {
 			outLabels: `package main
 
 _labels: {
-	bMZn: {
+	"family_name/label": {
 		"English (en)":   "What's your family name?"
 		"Afrikaans (af)": "Wat is jou familienaam?"
 	}
-	UkLW: {
+	"father/label": {
 		"English (en)":   "Father"
 		"Afrikaans (af)": "Pa"
 	}
-	gbHJ: {
+	"age/label": {
 		"English (en)":   "How old is your father?"
 		"Afrikaans (af)": "Hoe oud is jou pa?"
+	}
+	"yes_no/yes": {
+		"English (en)":   "Yes"
+		"Afrikaans (af)": "Ja"
+	}
+	"yes_no/no": {
+		"English (en)":   "No"
+		"Afrikaans (af)": "Nee"
+	}
+	"home_or_away/label": {
+		"English (en)":   "Is he home?"
+		"Afrikaans (af)": "Is hy tuis?"
 	}
 }
 `,
 			outForm: `package main
 
 _#Question: {...}
+_#Choices: {...}
 _#Group: {...}
 _#Settings: {...}
 
 family_name: _#Question & {
 	type:  "text"
 	name:  "family_name"
-	label: _labels."bMZn"
+	label: _labels."family_name/label"
 }
 father: _#Group & {
 	type:  "begin_group"
 	name:  "father"
-	label: _labels."UkLW"
+	label: _labels."father/label"
 	children: [
 		_#Question & {
 			type:  "integer"
 			name:  "age"
-			label: _labels."gbHJ"
+			label: _labels."age/label"
+		},
+		_#Question & {
+			type: "select_one"
+			choices: _#Choices & {
+				list_name: "yes_no"
+				choices: [
+					{
+						yes: _labels."yes_no/yes"
+					},
+					{
+						no: _labels."yes_no/no"
+					},
+				]
+			}
+			name:  "home_or_away"
+			label: _labels."home_or_away/label"
 		},
 	]
 }
@@ -91,28 +122,54 @@ func TestExtractLabels(t *testing.T) {
 			file: "testdata/form.cue",
 			result: []elementLabel{
 				{
-					id: "bMZn",
+					id: "family_name/label",
 					labels: []label{
 						{lang: "English (en)", langCode: "en", text: "What's your family name?"},
 						{lang: "Afrikaans (af)", langCode: "af", text: "Wat is jou familienaam?"},
 					},
 				},
 				{
-					id: "UkLW",
+					id: "father/label",
 					labels: []label{
 						{lang: "English (en)", langCode: "en", text: "Father"},
 						{lang: "Afrikaans (af)", langCode: "af", text: "Pa"},
 					},
 				},
 				{
-					id: "gbHJ",
+					id: "age/label",
 					labels: []label{
 						{lang: "English (en)", langCode: "en", text: "How old is your father?"},
 						{lang: "Afrikaans (af)", langCode: "af", text: "Hoe oud is jou pa?"},
 					},
 				},
+				{
+					id: "home_or_away/label",
+					labels: []label{
+						{lang: "English (en)", langCode: "en", text: "Is he home?"},
+						{lang: "Afrikaans (af)", langCode: "af", text: "Is hy tuis?"},
+					},
+				},
+				{
+					id: "yes_no/yes",
+					labels: []label{
+						{lang: "English (en)", langCode: "en", text: "Yes"},
+						{lang: "Afrikaans (af)", langCode: "af", text: "Ja"},
+					},
+				},
+				{
+					id: "yes_no/no",
+					labels: []label{
+						{lang: "English (en)", langCode: "en", text: "No"},
+						{lang: "Afrikaans (af)", langCode: "af", text: "Nee"},
+					},
+				},
 			},
 		},
+	}
+	sortElements := func(els []elementLabel) {
+		sort.SliceStable(els, func(i, j int) bool {
+			return strings.Compare(els[i].id, els[j].id) > 0
+		})
 	}
 	for _, tc := range testCases {
 		t.Run(tc.file, func(t *testing.T) {
@@ -121,6 +178,8 @@ func TestExtractLabels(t *testing.T) {
 			if err != tc.err {
 				t.Fatalf("have %s but want %s", err, tc.err)
 			}
+			sortElements(labels)
+			sortElements(tc.result)
 			if !reflect.DeepEqual(labels, tc.result) {
 				t.Fatalf("have\n%+v\nwant\n%+v\n", labels, tc.result)
 			}

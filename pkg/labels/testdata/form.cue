@@ -1,6 +1,7 @@
 package main
 
 _#Question: {...}
+_#Choices: {...}
 _#Group: {...}
 _#Settings: {...}
 
@@ -26,6 +27,31 @@ father: _#Group & {
 			label: {
 				"English (en)":   "How old is your father?"
 				"Afrikaans (af)": "Hoe oud is jou pa?"
+			}
+		},
+		_#Question & {
+			type:    "select_one"
+			choices: _#Choices & {
+				list_name: "yes_no"
+				choices: [
+					{
+						yes: {
+							"English (en)":   "Yes"
+							"Afrikaans (af)": "Ja"
+						}
+					},
+					{
+						no: {
+							"English (en)":   "No"
+							"Afrikaans (af)": "Nee"
+						}
+					},
+				]
+			}
+			name: "home_or_away"
+			label: {
+				"English (en)":   "Is he home?"
+				"Afrikaans (af)": "Is hy tuis?"
 			}
 		},
 	]
