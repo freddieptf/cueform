@@ -2,6 +2,8 @@ package xlsform
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"reflect"
 	"sort"
 	"strings"
@@ -43,7 +45,11 @@ func GetLangFromCol(translatableColumn string) (col string, lang string, err err
 
 func LoadFile(path string) (*cue.Value, error) {
 	ctx := cuecontext.New()
-	bis := load.Instances([]string{path}, &load.Config{ModuleRoot: ""})
+	formPaths := []string{path}
+	if _, err := os.Stat(filepath.Join(filepath.Dir(path), "labels.cue")); err == nil {
+		formPaths = append(formPaths, filepath.Join(filepath.Dir(path), "labels.cue"))
+	}
+	bis := load.Instances(formPaths, &load.Config{ModuleRoot: ""})
 	bi := bis[0]
 	// check for errors on the instance
 	// these are typically parsing errors
