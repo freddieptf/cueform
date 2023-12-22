@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"reflect"
+	"slices"
 	"sort"
 	"strings"
 
@@ -14,15 +14,6 @@ import (
 	"cuelang.org/go/cue/errors"
 	"cuelang.org/go/cue/load"
 )
-
-func indexOf[K interface{}](arr []K, val K) int {
-	for idx, item := range arr {
-		if reflect.DeepEqual(item, val) {
-			return idx
-		}
-	}
-	return -1
-}
 
 func IsTranslatableColumn(column string) bool {
 	for _, item := range TranslatableCols {
@@ -35,7 +26,7 @@ func IsTranslatableColumn(column string) bool {
 
 func GetLangFromCol(translatableColumn string) (col string, lang string, err error) {
 	match := langRe.FindStringSubmatch(translatableColumn)
-	if len(match) != 3 || indexOf(TranslatableCols, match[1]) == -1 {
+	if len(match) != 3 || slices.Index(TranslatableCols, match[1]) == -1 {
 		err = fmt.Errorf("missing lang code %s: %w", translatableColumn, ErrInvalidLabel)
 		return
 	}

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 
 	"cuelang.org/go/cue"
@@ -68,7 +69,7 @@ func (c *CueForm) toXLSForm() (*xlsForm, error) {
 	for _, element := range survey {
 		row := make([]string, len(orderSurveyColHeaders))
 		for key, val := range element {
-			row[indexOf(orderSurveyColHeaders, key)] = val
+			row[slices.Index(orderSurveyColHeaders, key)] = val
 		}
 		surveyRows = append(surveyRows, row)
 	}
@@ -81,7 +82,7 @@ func (c *CueForm) toXLSForm() (*xlsForm, error) {
 		for _, element := range choices {
 			row := make([]string, len(orderedChoiceColHeaders))
 			for key, val := range element {
-				row[indexOf(orderedChoiceColHeaders, key)] = val
+				row[slices.Index(orderedChoiceColHeaders, key)] = val
 			}
 			choiceRows = append(choiceRows, row)
 		}
@@ -100,7 +101,7 @@ func (c *CueForm) toXLSForm() (*xlsForm, error) {
 		orderedSettingColHeaders := getHeadersInOrder(settingHeaders, settingColumns)
 		settings := make([]string, len(orderedSettingColHeaders))
 		for k, v := range row {
-			settings[indexOf(orderedSettingColHeaders, k)] = v
+			settings[slices.Index(orderedSettingColHeaders, k)] = v
 		}
 		form.settingColumnHeaders = orderedSettingColHeaders
 		form.settings = [][]string{settings}

@@ -222,7 +222,7 @@ func (form *xlsForm) choicesToAst(importInfo astutil.ImportInfo) (map[string]ast
 // extractChoices transform the choice sheet rows to a map with the key being the choice list_name and
 // the value being an array of all rows specific to the choice with the list_name
 func extractChoices(columns []string, rows [][]string) map[string][][]string {
-	listNameIdx := indexOf(columns, "list_name")
+	listNameIdx := slices.Index(columns, "list_name")
 	choices := make(map[string][][]string)
 	for _, row := range rows {
 		if len(row) == 0 {
@@ -279,7 +279,7 @@ func (form *xlsForm) surveyToAst(importInfo astutil.ImportInfo, n *ast.StructLit
 			continue
 		}
 		idx++
-		elementType := row[indexOf(form.surveyColumnHeaders, "type")]
+		elementType := row[slices.Index(form.surveyColumnHeaders, "type")]
 		if strings.HasPrefix(elementType, "begin") {
 			group, err := buildSurveyElement(true, form.surveyColumnHeaders, row, choiceMap)
 			if err != nil {
