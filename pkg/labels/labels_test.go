@@ -7,106 +7,34 @@ import (
 	"testing"
 
 	"cuelang.org/go/cue/load"
+	"golang.org/x/tools/txtar"
 )
 
 func TestBuildFiles(t *testing.T) {
 	testCases := []struct {
-		file      string
-		outForm   string
-		outLabels string
+		file   string
+		result string
 	}{
 		{
-			file: "testdata/form.cue",
-			outLabels: `package main
-
-_labels: {
-	"family_name/label": {
-		"English (en)":   "What's your family name?"
-		"Afrikaans (af)": "Wat is jou familienaam?"
-	}
-	"father/label": {
-		"English (en)":   "Father"
-		"Afrikaans (af)": "Pa"
-	}
-	"age/label": {
-		"English (en)":   "How old is your father?"
-		"Afrikaans (af)": "Hoe oud is jou pa?"
-	}
-	"yes_no/yes": {
-		"English (en)":   "Yes"
-		"Afrikaans (af)": "Ja"
-	}
-	"yes_no/no": {
-		"English (en)":   "No"
-		"Afrikaans (af)": "Nee"
-	}
-	"home_or_away/label": {
-		"English (en)":   "Is he home?"
-		"Afrikaans (af)": "Is hy tuis?"
-	}
-}
-`,
-			outForm: `package main
-
-_#Question: {...}
-_#Choices: {...}
-_#Group: {...}
-_#Settings: {...}
-
-family_name: _#Question & {
-	type:  "text"
-	name:  "family_name"
-	label: _labels."family_name/label"
-}
-father: _#Group & {
-	type:  "begin_group"
-	name:  "father"
-	label: _labels."father/label"
-	children: [
-		_#Question & {
-			type:  "integer"
-			name:  "age"
-			label: _labels."age/label"
-		},
-		_#Question & {
-			type: "select_one"
-			choices: _#Choices & {
-				list_name: "yes_no"
-				choices: [
-					{
-						yes: _labels."yes_no/yes"
-					},
-					{
-						no: _labels."yes_no/no"
-					},
-				]
-			}
-			name:  "home_or_away"
-			label: _labels."home_or_away/label"
-		},
-	]
-}
-form_settings: _#Settings & {
-	type:             "settings"
-	form_title:       "test"
-	form_id:          "test_id"
-	version:          "1"
-	default_language: "English (en)"
-}
-`,
+			file:   "testdata/form.cue",
+			result: "testdata/form.txtar",
 		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.file, func(t *testing.T) {
+			data, err := txtar.ParseFile(tc.result)
+			if err != nil {
+				t.Fatal(err)
+			}
 			result, err := ExtractLabels(tc.file)
 			if err != nil {
 				t.Fatal(err)
 			}
-			if !reflect.DeepEqual(string(result.Form), tc.outForm) {
-				t.Fatalf("have\n%q\nwant\n%q\n", string(result.Form), tc.outForm)
+			if !reflect.DeepEqual(string(result.Form), string(data.Files[1].Data)) {
+				t.Fatalf("have\n%q\nwant\n%q\n", string(result.Form), string(data.Files[1].Data))
 			}
-			if !reflect.DeepEqual(string(result.Labels), tc.outLabels) {
-				t.Fatalf("have\n%q\nwant\n%q\n", string(result.Labels), tc.outLabels)
+			if !reflect.DeepEqual(string(result.Labels), string(data.Files[0].Data)) {
+				t.Fatalf("have\n%q\nwant\n%q\n", string(result.Labels), string(data.Files[0].Data))
 			}
 		})
 	}
