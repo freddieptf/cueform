@@ -24,14 +24,14 @@ type CueForm struct {
 }
 
 func ParseCueForm(file string) (*CueForm, error) {
-	val, err := LoadFile(file)
+	val, err := LoadValue(file)
 	if err != nil {
 		return nil, err
 	}
-	return ParseCueFormFromVal(val)
+	return parseCueFormFromVal(val)
 }
 
-func ParseCueFormFromVal(val *cue.Value) (*CueForm, error) {
+func parseCueFormFromVal(val *cue.Value) (*CueForm, error) {
 	form := &CueForm{SurveyElements: []*cue.Value{}}
 	fieldIter, err := getIter(val)
 	if err != nil {

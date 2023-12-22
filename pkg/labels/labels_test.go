@@ -98,15 +98,15 @@ form_settings: _#Settings & {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.file, func(t *testing.T) {
-			form, labels, err := extractLabels(tc.file)
+			result, err := ExtractLabels(tc.file)
 			if err != nil {
 				t.Fatal(err)
 			}
-			if !reflect.DeepEqual(string(form), tc.outForm) {
-				t.Fatalf("have\n%q\nwant\n%q\n", string(form), tc.outForm)
+			if !reflect.DeepEqual(string(result.Form), tc.outForm) {
+				t.Fatalf("have\n%q\nwant\n%q\n", string(result.Form), tc.outForm)
 			}
-			if !reflect.DeepEqual(string(labels), tc.outLabels) {
-				t.Fatalf("have\n%q\nwant\n%q\n", string(labels), tc.outLabels)
+			if !reflect.DeepEqual(string(result.Labels), tc.outLabels) {
+				t.Fatalf("have\n%q\nwant\n%q\n", string(result.Labels), tc.outLabels)
 			}
 		})
 	}

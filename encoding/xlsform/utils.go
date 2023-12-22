@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"cuelang.org/go/cue"
+	"cuelang.org/go/cue/build"
 	"cuelang.org/go/cue/cuecontext"
 	"cuelang.org/go/cue/errors"
 	"cuelang.org/go/cue/load"
@@ -43,29 +44,31 @@ func GetLangFromCol(translatableColumn string) (col string, lang string, err err
 	return
 }
 
-func LoadFile(path string) (*cue.Value, error) {
-	ctx := cuecontext.New()
+func LoadInstance(path string) ([]*build.Instance, error) {
 	formPaths := []string{path}
 	if _, err := os.Stat(filepath.Join(filepath.Dir(path), "labels.cue")); err == nil {
 		formPaths = append(formPaths, filepath.Join(filepath.Dir(path), "labels.cue"))
 	}
 	bis := load.Instances(formPaths, &load.Config{ModuleRoot: ""})
-	bi := bis[0]
-	// check for errors on the instance
-	// these are typically parsing errors
-	if bi.Err != nil {
-		return nil, fmt.Errorf("Error during load: %w", bi.Err)
+	if bis[0].Err != nil {
+		return nil, fmt.Errorf("error during load: %s", errors.Details(bis[0].Err, nil))
 	}
-	// Use cue.Context.BuildInstance to turn
-	// a build.Instance into a cue.Value
-	value := ctx.BuildInstance(bi)
-	if value.Err() != nil {
-		return nil, fmt.Errorf("Error during build: %w", value.Err())
-	}
-	// Validate the value
-	err := value.Validate(cue.Concrete(true))
+	return bis, nil
+}
+
+func LoadValue(path string) (*cue.Value, error) {
+	bis, err := LoadInstance(path)
 	if err != nil {
-		return nil, fmt.Errorf("Error during validation: %v", errors.Details(err, nil))
+		return nil, err
+	}
+	ctx := cuecontext.New()
+	value := ctx.BuildInstance(bis[0])
+	if value.Err() != nil {
+		return nil, fmt.Errorf("error during build: %s", errors.Details(value.Err(), nil))
+	}
+	err = value.Validate(cue.Concrete(true))
+	if err != nil {
+		return nil, fmt.Errorf("error during validation: %s", errors.Details(err, nil))
 	}
 	return &value, nil
 }

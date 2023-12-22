@@ -4,15 +4,14 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"path/filepath"
 	"regexp"
 	"strings"
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/ast"
-	"cuelang.org/go/cue/cuecontext"
 	"cuelang.org/go/cue/format"
 	"cuelang.org/go/cue/literal"
-	"cuelang.org/go/cue/load"
 	"github.com/freddieptf/cueform/encoding/xlsform"
 )
 
@@ -37,28 +36,42 @@ type Result struct {
 }
 
 func ExtractLabels(formPath string) (*Result, error) {
-	form, labels, err := extractLabels(formPath)
+	defaultLang, err := getDefaultLang(formPath)
+	if err != nil {
+		return nil, err
+	}
+	instances, err := xlsform.LoadInstance(formPath)
+	if err != nil {
+		return nil, err
+	}
+	var (
+		formFile  *ast.File
+		labelFile *ast.File
+	)
+	for _, file := range instances[0].Files {
+		if filepath.Base(file.Filename) == filepath.Base(formPath) {
+			formFile = file
+		} else if filepath.Base(file.Filename) == "labels.cue" {
+			labelFile = file
+		}
+	}
+	form, labels, err := extractLabels(defaultLang, formFile, labelFile)
 	if err != nil {
 		return nil, err
 	}
 	return &Result{Form: form, Labels: labels}, nil
 }
 
-func extractLabels(formPath string) (formFile []byte, labelsFile []byte, err error) {
-	instances := load.Instances([]string{formPath}, &load.Config{})
-	form := instances[0].Files[0]
-	val := cuecontext.New().BuildInstance(instances[0])
-	var defaultLang string
-	defaultLang, err = getDefaultLang(&val)
+func extractLabels(defaultLang string, form, labels *ast.File) (formFile []byte, labelsFile []byte, err error) {
+	if form == nil {
+		err = errors.New("did not find form file")
+		return
+	}
+	elementLabels, err := getLabels(defaultLang, form)
 	if err != nil {
 		return
 	}
-	var labels []elementLabel
-	labels, err = getLabels(defaultLang, form)
-	if err != nil {
-		return
-	}
-	labelsAstFile, err := buildLabelsFile(labels)
+	labelsAstFile, err := buildLabelsFile(labels, elementLabels)
 	if err != nil {
 		return
 	}
@@ -73,8 +86,8 @@ func extractLabels(formPath string) (formFile []byte, labelsFile []byte, err err
 	return
 }
 
-func getDefaultLang(val *cue.Value) (string, error) {
-	form, err := xlsform.ParseCueFormFromVal(val)
+func getDefaultLang(formPath string) (string, error) {
+	form, err := xlsform.ParseCueForm(formPath)
 	if err != nil {
 		return "", err
 	}
@@ -109,8 +122,24 @@ func getLabels(defaultLang string, form *ast.File) ([]elementLabel, error) {
 	return labelExtractor.elements, nil
 }
 
-func buildLabelsFile(labels []elementLabel) (*ast.File, error) {
-	labelMapAst := ast.NewStruct()
+func buildLabelsFile(file *ast.File, labels []elementLabel) (*ast.File, error) {
+	var labelMapAst *ast.StructLit
+	if file != nil {
+		for _, decl := range file.Decls {
+			switch v := decl.(type) {
+			case *ast.Field:
+				name, _, err := ast.LabelName(v.Label)
+				if err != nil {
+					return nil, err
+				}
+				if name == "_labels" {
+					labelMapAst = v.Value.(*ast.StructLit)
+				}
+			}
+		}
+	} else {
+		labelMapAst = ast.NewStruct()
+	}
 	for _, l := range labels {
 		labelStruct := ast.NewStruct()
 		for _, label := range l.labels {
@@ -145,7 +174,13 @@ func (e *extractor) extractLabels(defaultLang string, node *ast.BinaryExpr) erro
 		}
 		if xlsform.IsTranslatableColumn(name) {
 			labels := elementLabel{labels: []label{}}
-			labelStruct := f.(*ast.Field).Value.(*ast.StructLit)
+			var labelStruct *ast.StructLit
+			switch v := f.(*ast.Field).Value.(type) {
+			case *ast.StructLit:
+				labelStruct = v
+			default:
+				continue
+			}
 			for _, ls := range labelStruct.Elts {
 				label, err := getLabelFromField(ls.(*ast.Field))
 				if err != nil {
@@ -181,7 +216,13 @@ func (e *extractor) extractLabels(defaultLang string, node *ast.BinaryExpr) erro
 						if key == "filterCategory" {
 							continue
 						}
-						labelStruct := c.(*ast.Field).Value.(*ast.StructLit)
+						var labelStruct *ast.StructLit
+						switch v := c.(*ast.Field).Value.(type) {
+						case *ast.StructLit:
+							labelStruct = v
+						default:
+							continue
+						}
 						for _, l := range labelStruct.Elts {
 							label, err := getLabelFromField(l.(*ast.Field))
 							if err != nil {
