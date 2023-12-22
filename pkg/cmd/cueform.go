@@ -9,7 +9,7 @@ import (
 
 func ExecCueform(ctx context.Context) {
 	encoderCmd := newEncoderCmd()
-	decoderCmd := newDecodeCmd()
+	decoderCmd := newDecoderCmd()
 	yankCmd := newYankCmd()
 	printUsage := func() {
 		encoderCmd.flag.Usage()
