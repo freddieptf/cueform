@@ -229,6 +229,9 @@ func TestEncode(t *testing.T) {
 			file: "testdata/form_settings_invalid.cue",
 			err:  "form_settings does not match the schema: #Settings.default_language: conflicting values",
 		}, {
+			file: "testdata/form_empty_choices.cue",
+			err:  "smokes does not match the schema: #Question.choices.choices: incompatible list lengths (0 and 1)",
+		}, {
 			file: "testdata/form_or_other.cue",
 			err:  "favourite.or_other: or_other is not supported",
 		}, {

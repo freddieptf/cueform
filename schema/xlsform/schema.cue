@@ -66,7 +66,8 @@ import "list"
 
 #Choices: {
 	list_name: string
-	choices: [...#Choice]
+	// pyxform rejects a select whose list has no choices
+	choices: [#Choice, ...#Choice]
 }
 
 // every settings column is optional in XLSForm

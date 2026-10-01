@@ -300,6 +300,8 @@ against `#Question`.
 - `choices` is required on `select_one`, `select_multiple` and `rank`
   questions; without it, the element fails with
   `#Question.choices: field is required but not present`.
+  The list must have at least one choice; an empty one fails with
+  `#Question.choices.choices: incompatible list lengths (0 and 1)`.
 - `label` is required except on types that are never shown:
   `calculate`, `hidden`, `background-audio`, `xml-external`,
   `csv-external` and the metadata types (`start`, `end`, `today`,
