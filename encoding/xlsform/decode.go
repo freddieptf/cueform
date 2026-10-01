@@ -253,8 +253,11 @@ func buildChoiceStruct(choiceListName string, columns []string, rows [][]string)
 	choice := ast.NewStruct(&ast.Field{Label: ast.NewIdent("list_name"), Value: ast.NewString(choiceListName)}, &ast.Field{Label: ast.NewIdent("choices"), Value: entries})
 	for _, row := range rows {
 		choiceEntry := &ast.Field{}
+		filters := ast.NewStruct()
 		for idx, colVal := range row {
-			if columns[idx] == "name" {
+			if colVal != "" && isChoiceFilterColumn(columns[idx]) {
+				filters.Elts = append(filters.Elts, &ast.Field{Label: ast.NewString(columns[idx]), Value: ast.NewString(colVal)})
+			} else if columns[idx] == "name" {
 				choiceEntry.Label = ast.NewIdent(colVal)
 			} else if columns[idx] == "label" {
 				return nil, ErrInvalidLabel
@@ -267,6 +270,9 @@ func buildChoiceStruct(choiceListName string, columns []string, rows [][]string)
 			}
 		}
 		entry := ast.NewStruct(choiceEntry)
+		if len(filters.Elts) > 0 {
+			entry.Elts = append(entry.Elts, &ast.Field{Label: ast.NewIdent("filterCategory"), Value: filters})
+		}
 		entry.Lbrace = token.Newline.Pos()
 		entries.Elts = append(entries.Elts, entry)
 	}

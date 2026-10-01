@@ -303,8 +303,21 @@ func choiceStructToRows(val *cue.Value, keys map[string]struct{}) ([]map[string]
 
 	elements := []map[string]string{}
 	for choicesIter.Next() {
+		entry := choicesIter.Value()
+		// filterCategory becomes extra columns, which a question's choice_filter can test
+		filters := map[string]string{}
+		if f := entry.LookupPath(cue.ParsePath("filterCategory")); f.Exists() {
+			if err := f.Decode(&filters); err != nil {
+				return nil, fmt.Errorf("%s: %s", f.Path(), errors.Details(err, nil))
+			}
+			for col := range filters {
+				if !isChoiceFilterColumn(col) {
+					return nil, fmt.Errorf("%s: %q is a choices sheet column, not a filter", f.Path(), col)
+				}
+			}
+		}
 		// iterated rather than decoded so choices keep their source order
-		choiceIter, err := choicesIter.Value().Fields()
+		choiceIter, err := entry.Fields()
 		if err != nil {
 			return nil, err
 		}
@@ -319,10 +332,25 @@ func choiceStructToRows(val *cue.Value, keys map[string]struct{}) ([]map[string]
 			if err := addTranslations(element, keys, "label", choiceIter.Value()); err != nil {
 				return nil, err
 			}
+			for col, value := range filters {
+				element[col] = value
+				keys[col] = struct{}{}
+			}
 			elements = append(elements, element)
 		}
 	}
 	return elements, nil
+}
+
+// isChoiceFilterColumn reports whether a choices sheet column is free for choice_filter data,
+// rather than one XLSForm defines for choices (name, labels, media)
+func isChoiceFilterColumn(col string) bool {
+	base, _, _ := strings.Cut(col, "::")
+	switch base {
+	case "list_name", "name", "label", "image", "big-image", "audio", "video", "media":
+		return false
+	}
+	return true
 }
 
 func setDefaultColumnWidth(sheet string, f *excelize.File) {

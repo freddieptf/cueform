@@ -100,10 +100,11 @@ func TestEncode(t *testing.T) {
 					{"select_one counties", "county", "County"},
 					{"end_repeat"},
 				},
-				choiceColumnHeaders: []string{"list_name", "name", "label::English (en)"},
+				// filterCategory becomes a column a choice_filter can test
+				choiceColumnHeaders: []string{"list_name", "name", "label::English (en)", "country"},
 				choices: [][]string{
-					{"counties", "nairobi", "Nairobi"},
-					{"counties", "kampala", "Kampala"},
+					{"counties", "nairobi", "Nairobi", "ke"},
+					{"counties", "kampala", "Kampala", "ug"},
 				},
 				settingColumnHeaders: []string{"form_title", "form_id", "default_language", "version"},
 				settings: [][]string{
@@ -164,6 +165,27 @@ func TestEncode(t *testing.T) {
 					{"yes_no", "no", "No"},
 				},
 			},
+		}, {
+			// a cascading select: choice_filter tests the country column filterCategory writes
+			file: "testdata/form_cascading.cue",
+			form: &xlsForm{
+				surveyColumnHeaders: []string{"type", "name", "label::en", "choice_filter"},
+				survey: [][]string{
+					{"select_one countries", "country", "Country"},
+					{"select_one cities", "city", "City", "country=${country}"},
+				},
+				choiceColumnHeaders: []string{"list_name", "name", "label::en", "country"},
+				choices: [][]string{
+					{"countries", "ke", "Kenya"},
+					{"countries", "ug", "Uganda"},
+					{"cities", "nairobi", "Nairobi", "ke"},
+					{"cities", "mombasa", "Mombasa", "ke"},
+					{"cities", "kampala", "Kampala", "ug"},
+				},
+			},
+		}, {
+			file: "testdata/form_reserved_filter.cue",
+			err:  `city.choices.choices[0].filterCategory: "image" is a choices sheet column, not a filter`,
 		}, {
 			file: "testdata/form_conflicting_choices.cue",
 			err:  `drinks.choices: choice list "yes_no" differs from the one at smokes.choices`,

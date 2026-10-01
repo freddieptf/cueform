@@ -330,8 +330,14 @@ against `#Question`.
   rejects a list whose choice names repeat. If two questions use the same
   `list_name` with different choices, encoding fails with
   `<path>: choice list "yes_no" differs from the one at <first path>; give one of them another list_name`.
-- The `filterCategory` key in a choice entry is skipped and not
-  written.
+- An entry's `filterCategory` becomes extra columns on each of its
+  choices, which a question's `choice_filter` can test. For example,
+  `{nairobi: en: "Nairobi", filterCategory: country: "ke"}` writes `ke`
+  in a `country` column, and `choice_filter: "country=${country}"`
+  makes a cascading select. A filter can't use a column XLSForm defines
+  for choices (`list_name`, `name`, `label`, `image`, `big-image`,
+  `audio`, `video`, `media`); that fails with
+  `<path>: "image" is a choices sheet column, not a filter`.
 
 **Settings sheet.** Written only if `form_settings` exists. Its fields
 become a single row. The `type` field is removed.
@@ -413,8 +419,10 @@ a workbook pyxform reads the same way.
 **Choices.** Rows are grouped by `list_name`. Each row becomes
 `{<name>: {<lang>: <label>}}` in that list's `choices`. The list is
 wrapped as `pkg.#Choices & {...}`. A plain `label` column with no
-language returns `ErrInvalidLabel`. Columns other than `name` and
-`label::*`, such as filter columns, are dropped.
+language returns `ErrInvalidLabel`. Other columns with a value become
+the entry's `filterCategory`, as in
+`{nairobi: en: "Nairobi", filterCategory: country: "ke"}`. Media columns
+(`image`, `audio`, `video`, `big-image`, `media::*`) are dropped.
 
 **Survey.**
 
@@ -472,8 +480,8 @@ These describe current behavior. Most are bugs or gaps.
 - **Unusual numbers differ from pyxform.** Numbers below 0.0001 decode
   as `0.00001`, where pyxform writes `1e-05`, and integers beyond 2^53
   lose digits.
-- **`filterCategory` is lost.** The encoder skips it, and the decoder
-  never produces it, so it does not survive either direction.
+- **Choice media is lost.** The encoder can't write choice `image`,
+  `audio` or `video` columns, and the decoder drops them.
 - **Choice list with no match.** The decoder doesn't check that a
   `select_*` list name exists in the choices sheet. This includes
   `select_one_from_file <file>`. With no match, `choices` gets a nil

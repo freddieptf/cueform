@@ -79,6 +79,38 @@ func TestParseXLSForm(t *testing.T) {
 	}
 }
 
+// extra choices sheet columns, which a choice_filter tests, decode as filterCategory
+func TestBuildChoiceStructFilters(t *testing.T) {
+	columns := []string{"list_name", "name", "label::en", "country", "image"}
+	rows := [][]string{
+		{"cities", "nairobi", "Nairobi", "ke", "nairobi.png"},
+		{"cities", "other", "Other"},
+	}
+	choice, err := buildChoiceStruct("cities", columns, rows)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := format.Node(choice, format.Simplify())
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := `{
+	list_name: "cities"
+	choices: [
+		{
+			nairobi: en: "Nairobi"
+			filterCategory: country: "ke"
+		},
+		{
+			other: en: "Other"
+		},
+	]
+}`
+	if have := string(b); have != want {
+		t.Fatalf("have\n%s\nwant\n%s", have, want)
+	}
+}
+
 func TestBuildSurveyElement(t *testing.T) {
 	testCases := []struct {
 		colHeaders []string
