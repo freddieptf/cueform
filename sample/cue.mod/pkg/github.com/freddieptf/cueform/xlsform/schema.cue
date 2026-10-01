@@ -22,6 +22,11 @@ import "list"
 	constraint?:         string
 	constraint_message?: #Translatable
 	hint?:               #Translatable
+	guidance_hint?:      string | #Translatable
+	image?:              string | #Translatable
+	"big-image"?:        string | #Translatable
+	audio?:              string | #Translatable
+	video?:              string | #Translatable
 	required?:           string | bool
 	required_message?:   #Translatable
 	relevant?:           string

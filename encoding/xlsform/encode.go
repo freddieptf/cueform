@@ -15,9 +15,11 @@ import (
 )
 
 var (
-	langRe           = regexp.MustCompile(`(?P<column>\w+)::(?P<lang>.+)`)
-	TranslatableCols = []string{"label", "required_message", "constraint_message", "hint"}
-	surveyColumns    = []string{"type", "name", "label", "required", "required_message", "relevant", "repeat_count", "constraint", "constraint_message", "hint", "choice_filter", "read_only", "calculation", "appearance", "default"}
+	langRe           = regexp.MustCompile(`(?P<column>[\w-]+)::(?P<lang>.+)`)
+	TranslatableCols = []string{"label", "required_message", "constraint_message", "hint", "guidance_hint", "image", "big-image", "audio", "video"}
+	// translatable columns that are also commonly written once, without a language
+	untranslatedCols = []string{"guidance_hint", "image", "big-image", "audio", "video"}
+	surveyColumns    = []string{"type", "name", "label", "required", "required_message", "relevant", "repeat_count", "constraint", "constraint_message", "hint", "guidance_hint", "image", "big-image", "audio", "video", "choice_filter", "read_only", "calculation", "appearance", "default"}
 	choiceColumns    = []string{"list_name", "name", "label"}
 	settingColumns   = []string{"form_title", "form_id", "public_key", "submission_url", "default_language", "style", "version", "instance_name"}
 )
@@ -225,7 +227,8 @@ func fieldsToRow(val *cue.Value, keys map[string]struct{}) (map[string]string, e
 		if key == "children" || key == "choices" {
 			continue
 		}
-		if IsTranslatableColumn(key) {
+		// a translatable field is a {lang: text} struct; media and guidance_hint may also be plain
+		if IsTranslatableColumn(key) && elIter.Value().Kind() == cue.StructKind {
 			if err := addTranslations(result, keys, key, elIter.Value()); err != nil {
 				return nil, err
 			}

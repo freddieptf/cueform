@@ -51,12 +51,14 @@ has no `::lang` suffix. `GetLangFromCol` wraps `ErrInvalidLabel`, so
 check for it with `errors.Is`.
 
 ```go
-var TranslatableCols = []string{"label", "required_message", "constraint_message", "hint"}
+var TranslatableCols = []string{"label", "required_message", "constraint_message", "hint", "guidance_hint", "image", "big-image", "audio", "video"}
 ```
 
-TranslatableCols lists the columns that hold one value per language.
-In CUE they are structs that map a language to text. In XLSForm they
-are spread across `column::language` headers.
+TranslatableCols lists the columns that can hold one value per language.
+In CUE these are structs that map a language to text. In XLSForm they
+are spread across `column::language` headers. `guidance_hint` and the
+media columns (`image`, `big-image`, `audio`, `video`) can also be a
+single plain value with no language, such as `image: "logo.png"`.
 
 ## func IsTranslatableColumn
 
@@ -64,9 +66,12 @@ are spread across `column::language` headers.
 func IsTranslatableColumn(column string) bool
 ```
 
-IsTranslatableColumn reports whether column starts with one of the
-`TranslatableCols`. It matches by prefix, so `label`, `label::English (en)`
-and `hint_extra` all return true.
+IsTranslatableColumn reports whether column is one of the
+`TranslatableCols`, with or without a `::lang` suffix. It compares the
+text before the first `:`, so `label`, `label::English (en)` and
+`big-image::fr` return true, and `hint_extra` returns false. A typo such
+as `label:en` also returns true, so the decoder rejects it for its
+missing language.
 
 ## func GetLangFromCol
 
@@ -261,9 +266,12 @@ form_settings: xlsform.#Settings & {
 - A `select_*` question holds its choice list in `choices`. Each entry
   in `choices.choices` is a struct whose key is the choice `name` and
   whose value maps a language to the choice label.
-- Translatable columns (`label`, `hint`, `required_message`,
-  `constraint_message`) map a language to text. The language key
-  becomes the `::` suffix of the XLSForm header.
+- Translatable columns (`label`, `hint`, `guidance_hint`,
+  `required_message`, `constraint_message`, and the media columns
+  `image`, `big-image`, `audio` and `video`) map a language to text. The
+  language key becomes the `::` suffix of the XLSForm header.
+  `guidance_hint` and the media columns can also be a plain value,
+  written to a column with no language: `image: "logo.png"`.
 
 ## Encoding rules
 
@@ -437,7 +445,9 @@ the entry's `filterCategory`, as in
   decoded `<list>` from the choices sheet.
 - A translatable header must have the form `col::lang`. It becomes a
   struct `col: {lang: text}`. If it has no language, decoding fails with
-  `ErrInvalidLabel`.
+  `ErrInvalidLabel`. The exceptions are `guidance_hint` and the media
+  columns, which can be plain: an `image` column decodes as
+  `image: "logo.png"`.
 - In the `required` and `read_only` columns, the exact values `yes`,
   `Yes`, `YES`, `true`, `True` and `TRUE` become `true`, and `no`, `No`,
   `NO`, `false`, `False` and `FALSE` become `false`. This is the same
@@ -497,7 +507,5 @@ These describe current behavior. Most are bugs or gaps.
   Go map. That doesn't change the output, because each list is
   attached to the question that uses it, but it matters if you add code
   that emits the lists on their own.
-- **Prefix matching.** `IsTranslatableColumn` and the decoder's
-  required-column check both match by prefix. A column such as
-  `hint_extra` is treated as translatable, and `name_foo` satisfies the
-  required `name` column.
+- **Prefix matching.** The decoder's required-column check matches by
+  prefix, so `name_foo` satisfies the required `name` column.

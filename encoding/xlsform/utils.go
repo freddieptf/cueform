@@ -15,13 +15,12 @@ import (
 	"cuelang.org/go/cue/load"
 )
 
+// IsTranslatableColumn reports whether column, with or without a ::lang suffix, is one of
+// TranslatableCols. It compares the text before the first ':', so a typo such as
+// "label:en" still counts and is rejected for its missing language.
 func IsTranslatableColumn(column string) bool {
-	for _, item := range TranslatableCols {
-		if strings.HasPrefix(column, item) {
-			return true
-		}
-	}
-	return false
+	base, _, _ := strings.Cut(column, ":")
+	return slices.Contains(TranslatableCols, base)
 }
 
 func GetLangFromCol(translatableColumn string) (col string, lang string, err error) {

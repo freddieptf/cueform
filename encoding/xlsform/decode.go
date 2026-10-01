@@ -327,7 +327,7 @@ func buildSurveyElement(nl bool, columnHeaders []string, row []string, choiceMap
 		qtype, choice, hasList := strings.Cut(row[idx], " ")
 		if header == "type" && hasList && usesChoices(qtype) {
 			element.Elts = append(element.Elts, &ast.Field{Label: ast.NewIdent(header), Value: ast.NewString(qtype)}, &ast.Field{Label: ast.NewIdent("choices"), Value: choiceMap[strings.TrimSpace(choice)]})
-		} else if IsTranslatableColumn(header) {
+		} else if IsTranslatableColumn(header) && !slices.Contains(untranslatedCols, header) {
 			col, lang, err := GetLangFromCol(header)
 			if err != nil {
 				return nil, err

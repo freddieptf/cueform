@@ -158,6 +158,21 @@ func TestBuildSurveyElement(t *testing.T) {
 }`,
 		},
 		{
+			// guidance_hint and media columns decode as translations, or as one plain value
+			colHeaders: []string{"type", "name", "label::en", "guidance_hint::en", "image", "big-image::en", "audio::fr", "hint_extra"},
+			row:        []string{"image", "test", "test", "staff only", "a.png", "big.png", "a.mp3", "x"},
+			want: `{
+	type: "image"
+	name: "test"
+	label: en: "test"
+	guidance_hint: en: "staff only"
+	image: "a.png"
+	"big-image": en: "big.png"
+	audio: fr: "a.mp3"
+	hint_extra: "x"
+}`,
+		},
+		{
 			// rank takes a choice list like the select types
 			colHeaders: []string{"type", "name", "label::lang (en)"},
 			row:        []string{"rank yes_no", "test", "test"},

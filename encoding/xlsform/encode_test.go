@@ -184,6 +184,15 @@ func TestEncode(t *testing.T) {
 				},
 			},
 		}, {
+			// guidance_hint and media columns take translations, or one plain value
+			file: "testdata/form_media.cue",
+			form: &xlsForm{
+				surveyColumnHeaders: []string{"type", "name", "label::en", "label::fr", "hint::en", "hint::fr", "guidance_hint::en", "guidance_hint::fr", "image", "big-image::en", "big-image::fr", "audio::en", "audio::fr"},
+				survey: [][]string{
+					{"image", "photo", "Take a photo", "Prenez une photo", "Hold steady", "Restez immobile", "Only for staff", "Pour le personnel", "example.png", "large_en.png", "large_fr.png", "prompt_en.mp3", "prompt_fr.mp3"},
+				},
+			},
+		}, {
 			file: "testdata/form_reserved_filter.cue",
 			err:  `city.choices.choices[0].filterCategory: "image" is a choices sheet column, not a filter`,
 		}, {
