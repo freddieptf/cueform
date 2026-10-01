@@ -10,8 +10,8 @@ This repo provides a tool that converts CUE to XLSForm. It has full compatibilit
 
 #### Install from source
 
-    go install github.com/freddieptf/cueform/cmd/cue2xlsform@latest
+    go install github.com/freddieptf/cueform/cmd/cueform@latest
 
 #### Usage
 
-    ./cue2xlsform --help
+    ./cueform --help
