@@ -111,6 +111,15 @@ func TestBuildChoiceStructFilters(t *testing.T) {
 	}
 }
 
+func TestBuildSurveyElementOrOther(t *testing.T) {
+	for _, typ := range []string{"select_one yes_no or_other", "select_multiple yes_no or specify other", "rank yes_no or other"} {
+		_, err := buildSurveyElement(false, []string{"type", "name", "label::en"}, []string{typ, "q", "Q"}, map[string]ast.Expr{})
+		if !errors.Is(err, ErrOrOther) {
+			t.Errorf("%q: have %v, want %v", typ, err, ErrOrOther)
+		}
+	}
+}
+
 func TestBuildSurveyElement(t *testing.T) {
 	testCases := []struct {
 		colHeaders []string

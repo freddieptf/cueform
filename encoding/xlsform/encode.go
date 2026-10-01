@@ -227,6 +227,9 @@ func fieldsToRow(val *cue.Value, keys map[string]struct{}) (map[string]string, e
 		if key == "children" || key == "choices" {
 			continue
 		}
+		if key == "or_other" {
+			return nil, fmt.Errorf("%s: %w", elIter.Value().Path(), ErrOrOther)
+		}
 		// a translatable field is a {lang: text} struct; media and guidance_hint may also be plain
 		if IsTranslatableColumn(key) && elIter.Value().Kind() == cue.StructKind {
 			if err := addTranslations(result, keys, key, elIter.Value()); err != nil {

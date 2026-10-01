@@ -193,6 +193,9 @@ func TestEncode(t *testing.T) {
 				},
 			},
 		}, {
+			file: "testdata/form_or_other.cue",
+			err:  "favourite.or_other: or_other is not supported",
+		}, {
 			file: "testdata/form_reserved_filter.cue",
 			err:  `city.choices.choices[0].filterCategory: "image" is a choices sheet column, not a filter`,
 		}, {

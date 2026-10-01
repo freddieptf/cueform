@@ -20,6 +20,8 @@ var (
 	ErrInvalidXLSForm      = errors.New("xlsform structure is incorrect")
 	ErrInvalidXLSFormSheet = errors.New("found xlsform sheet missing a required column")
 	ErrInvalidLabel        = errors.New("found translatable column with no language code")
+	// pyxform adds the "other" choice to the shared list, so every question using it shows it
+	ErrOrOther = errors.New(`or_other is not supported; add an "other" choice and a text question with relevant, as the XLSForm spec recommends`)
 
 	surveySheetName   = "survey"
 	choiceSheetName   = "choices"
@@ -326,7 +328,11 @@ func buildSurveyElement(nl bool, columnHeaders []string, row []string, choiceMap
 		}
 		qtype, choice, hasList := strings.Cut(row[idx], " ")
 		if header == "type" && hasList && usesChoices(qtype) {
-			element.Elts = append(element.Elts, &ast.Field{Label: ast.NewIdent(header), Value: ast.NewString(qtype)}, &ast.Field{Label: ast.NewIdent("choices"), Value: choiceMap[strings.TrimSpace(choice)]})
+			list, suffix, _ := strings.Cut(strings.TrimSpace(choice), " ")
+			if suffix != "" {
+				return nil, fmt.Errorf("%w: type %q", ErrOrOther, row[idx])
+			}
+			element.Elts = append(element.Elts, &ast.Field{Label: ast.NewIdent(header), Value: ast.NewString(qtype)}, &ast.Field{Label: ast.NewIdent("choices"), Value: choiceMap[list]})
 		} else if IsTranslatableColumn(header) && !slices.Contains(untranslatedCols, header) {
 			col, lang, err := GetLangFromCol(header)
 			if err != nil {

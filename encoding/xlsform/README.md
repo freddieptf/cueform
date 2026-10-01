@@ -324,6 +324,11 @@ against `#Question`.
 - If `type` starts with `select_` or is `rank`, the encoder writes the
   type column as `"<type> <choices.list_name>"`, for example
   `select_one ages` or `rank ages`.
+- `or_other` isn't supported. pyxform adds its "other" choice to the
+  shared list, so every question using the list shows it. Add an
+  "other" choice and a text question with `relevant`, as the XLSForm spec
+  recommends. An `or_other` field fails with `<path>: or_other is not
+  supported` (`ErrOrOther`).
 - If `type` starts with `begin_` or `begin `, the encoder writes the
   group row, then each child, then a closing row. The closing row keeps
   the same separator: `begin_repeat` is closed with `end_repeat`, and
@@ -442,7 +447,8 @@ the entry's `filterCategory`, as in
 - Every other row becomes `pkg.#Question & {...}`.
 - A type of `select_<x> <list>` or `rank <list>` is split into
   `type: "select_<x>"` (or `"rank"`) and a `choices` field that holds the
-  decoded `<list>` from the choices sheet.
+  decoded `<list>` from the choices sheet. A suffix after the list name,
+  such as `or_other`, fails with `ErrOrOther`.
 - A translatable header must have the form `col::lang`. It becomes a
   struct `col: {lang: text}`. If it has no language, decoding fails with
   `ErrInvalidLabel`. The exceptions are `guidance_hint` and the media
