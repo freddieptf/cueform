@@ -111,6 +111,31 @@ func TestBuildSurveyElement(t *testing.T) {
 }`,
 			err: nil,
 		},
+		{
+			// only exact yes/no spellings become bools; expressions, true() and other columns stay strings
+			colHeaders: []string{"type", "name", "label::lang (en)", "required", "read_only", "relevant", "default"},
+			row:        []string{"text", "test", "test", "YES", "false", "yes", "no"},
+			want: `{
+	type: "text"
+	name: "test"
+	label: "lang (en)": "test"
+	required:  true
+	read_only: false
+	relevant:  "yes"
+	default:   "no"
+}`,
+		},
+		{
+			colHeaders: []string{"type", "name", "label::lang (en)", "required", "read_only"},
+			row:        []string{"text", "test", "test", "${age} >= 18", "true()"},
+			want: `{
+	type: "text"
+	name: "test"
+	label: "lang (en)": "test"
+	required:  "${age} >= 18"
+	read_only: "true()"
+}`,
+		},
 	}
 	choiceMap := make(map[string]ast.Expr)
 	for _, tc := range testCases {

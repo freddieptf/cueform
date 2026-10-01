@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"regexp"
 	"slices"
-	"strconv"
 	"strings"
 
 	"cuelang.org/go/cue"
@@ -208,7 +207,7 @@ func fieldsToRow(val *cue.Value, keys map[string]struct{}) (map[string]string, e
 				return nil, err
 			}
 		} else {
-			keyVal, err := scalarToCell(elIter.Value())
+			keyVal, err := valueToCell(elIter.Value())
 			if err != nil {
 				return nil, err
 			}
@@ -242,11 +241,9 @@ func addTranslations(row map[string]string, keys map[string]struct{}, col string
 	return nil
 }
 
-// scalarToCell formats a concrete string, bool or number as an XLSForm cell
-func scalarToCell(val cue.Value) (string, error) {
+// valueToCell writes strings exactly as they are, bools as yes/no and numbers as plain decimal text
+func valueToCell(val cue.Value) (string, error) {
 	switch val.Kind() {
-	case cue.StringKind:
-		return val.String()
 	case cue.BoolKind:
 		b, err := val.Bool()
 		if err != nil {
@@ -256,21 +253,19 @@ func scalarToCell(val cue.Value) (string, error) {
 			return "yes", nil
 		}
 		return "no", nil
-	case cue.IntKind:
-		i, err := val.Int64()
+	case cue.IntKind, cue.FloatKind:
+		// CUE's exact decimal, so 1.50 keeps its trailing zero
+		j, err := val.MarshalJSON()
 		if err != nil {
 			return "", err
 		}
-		return strconv.FormatInt(i, 10), nil
-	case cue.FloatKind:
-		f, err := val.Float64()
-		if err != nil {
-			return "", err
-		}
-		return strconv.FormatFloat(f, 'f', -1, 64), nil
-	default:
-		return "", fmt.Errorf("%s: cannot write a %s as an xlsform cell", val.Path(), val.Kind())
+		return string(j), nil
 	}
+	s, err := val.String()
+	if err != nil {
+		return "", fmt.Errorf("%s: xlsform values must be strings, bools or numbers: %s", val.Path(), errors.Details(err, nil))
+	}
+	return s, nil
 }
 
 func choiceStructToRows(val *cue.Value, keys map[string]struct{}) ([]map[string]string, error) {

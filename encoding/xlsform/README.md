@@ -295,18 +295,24 @@ against `#Question`.
 - Every element must have a string `type`.
 - Every field except `children` and `choices` becomes a column.
   Translatable fields are decoded as `{lang: text}` and become one
-  `field::lang` column per language. Every other field must be a string,
-  bool or number:
+  `field::lang` column per language. Every other field must be a CUE
+  string, bool or number. All are written as text cells, which is how
+  pyxform reads every cell anyway:
 
-  | CUE value          | cell     |
-  |--------------------|----------|
-  | `"text"`           | `text`   |
-  | `true` / `false`   | `yes` / `no` |
-  | `3`                | `3`      |
-  | `1.5`              | `1.5`    |
+  | CUE value | cell |
+  |-----------|------|
+  | `"text"` | `text`, exactly as it is |
+  | `true` / `false` | `yes` / `no` |
+  | `3`, `len(_sizes)` | `3` |
+  | `1.50` | `1.50`, CUE's exact decimal with its trailing zeros |
 
-  A list or struct fails with `<path>: cannot write a list as an xlsform
-  cell`. The schema accepts bools for `required` and `read_only`.
+  The schema still types some fields. `required` and `read_only` take a
+  string or bool, so `required: true` works. Fields such as `relevant`
+  are strings only, and anything else fails with
+  `<path> does not match the schema`. Untyped fields such as
+  `repeat_count`, `default` and the settings `version` take numbers. A
+  list or struct fails with
+  `<path>: xlsform values must be strings, bools or numbers`.
 - If `type` starts with `select_`, the encoder writes the type column as
   `"<type> <choices.list_name>"`, for example `select_one ages`.
 - If `type` starts with `begin_` or `begin `, the encoder writes the
@@ -342,9 +348,52 @@ alphabetical order. Only columns that some element uses are written.
 
 **Workbook.** The default `Sheet1` is deleted. Column width is set to 30
 for every column, and to 50 for column C of the survey sheet (usually
-the first label column).
+the first label column). Each sheet's dimension is set to the range
+written. pyxform reads workbooks with openpyxl in read-only mode, which
+reads only the cells inside the dimension. With excelize's default of
+`A1`, pyxform produces an XForm with no questions.
 
 ## Decoding rules
+
+**Cell values.** XLSForm values are text, and cells are read as pyxform
+4.5.0 reads them. This keeps imports faithful: a decoded spreadsheet
+encodes back to one that pyxform reads the same way. The same rules
+apply in every sheet.
+
+- Text and bool cells read as they are: `3.00` as text stays `"3.00"`,
+  and bools read `TRUE`/`FALSE`.
+- Number cells (`repeat_count`, `default`, numeric versions and choice
+  names) use their stored value, not the text Excel displays
+  (excelize's default):
+
+  | number cell | Excel shows | decoded as |
+  |---|---|---|
+  | `3` formatted `0.00` | `3.00` | `"3"` |
+  | `0.5` formatted `0.00%` | `50.00%` | `"0.5"` |
+  | `1234.5` formatted `#,##0.000` | `1,234.500` | `"1234.5"` |
+  | `0.000123` formatted `0.00` | `0.00` | `"0.000123"` |
+
+- Date and time cells decode as pyxform writes them: `"2024-01-15 00:00:00"`,
+  or `"13:30:00"` for a time on its own. Each one also logs a warning
+  naming the cell:
+  `warning: survey!D2 (hint::en): Excel stored this as a date, which pyxform reads as "2026-01-02 00:00:00"; format the cell as text if that isn't what you meant`.
+  XLSForm values are text, so a date cell is usually text that Excel
+  converted. A hint typed as `1/2` becomes 2 January, and pyxform puts
+  `2026-01-02 00:00:00` in the form without warning. Matching pyxform
+  keeps imports working and faithful, and the warning points at the cell
+  to fix. A cell counts as a date if its number format's first section
+  has a `d`, `m`, `h`, `y` or `s` outside quoted text and `[...]`
+  sections, as in openpyxl.
+- Decoded values are always CUE strings, apart from the yes/no bools
+  below.
+
+`testdata/pyxform/cells.xlsx` holds these cases, written by openpyxl,
+and `cells.json` holds pyxform's reading of them. `TestCellsMatchPyxform`
+checks the decoder against that reading. Set `CUEFORM_PYXFORM_PYTHON` to
+a Python with `pyxform==4.5.0` installed, and
+`TestRoundTripMatchesPyxform` will also run pyxform itself. It checks
+that `cells.json` is current, and that decoding and encoding again gives
+a workbook pyxform reads the same way.
 
 **Sheet validation.**
 
@@ -378,7 +427,14 @@ language returns `ErrInvalidLabel`. Columns other than `name` and
 - A translatable header must have the form `col::lang`. It becomes a
   struct `col: {lang: text}`. If it has no language, decoding fails with
   `ErrInvalidLabel`.
-- Every other cell becomes a string field named after its header.
+- In the `required` and `read_only` columns, the exact values `yes`,
+  `Yes`, `YES`, `true`, `True` and `TRUE` become `true`, and `no`, `No`,
+  `NO`, `false`, `False` and `FALSE` become `false`. This is the same
+  list pyxform uses (`aliases.BINDING_CONVERSIONS`, v4.5.0). Any other
+  value, including `true()` and expressions such as `${age} >= 18`,
+  stays a string.
+- Every other cell becomes a string field named after its header, with
+  its value read as described in [Cell values](#decoding-rules).
 - Each top-level element becomes a top-level field named after its
   `name` value. Elements with one field or fewer, such as stray `end`
   rows, are skipped.
@@ -392,13 +448,27 @@ rows or more than one.
 
 These describe current behavior. Most are bugs or gaps.
 
+- **Yes/no spellings are normalized.** `TRUE`, `YES`, `false` and the
+  other spellings in `required` and `read_only` decode as CUE bools, and
+  bools encode as `yes`/`no`. A sheet that used `TRUE` therefore comes
+  back with `yes`. pyxform reads both as `true()`, so the form is the
+  same.
+
 - **The `end` metadata type breaks decoding.** The decoder treats any
   row whose type starts with `end` as the close of a group. An `end`
   metadata question, which the schema allows, ends the enclosing group
   early, or the whole survey if it is at the top level.
-- **Types are not round-tripped.** The encoder writes bools as
-  `yes`/`no` and numbers as text, and the decoder always outputs
-  strings. `read_only: true` therefore decodes as `read_only: "yes"`.
+- **Numbers come back as strings.** `repeat_count: 3` encodes as `3` and
+  decodes as `repeat_count: "3"`. pyxform reads both the same way.
+- **Unusual date cells differ from pyxform.** No XLSForm column needs
+  these, so they aren't matched:
+  - durations (`[h]:mm:ss`), which pyxform writes as `1 day, 6:00:00`;
+  - workbooks using the 1904 date system;
+  - dates before March 1900;
+  - times with fractions of a second.
+- **Unusual numbers differ from pyxform.** Numbers below 0.0001 decode
+  as `0.00001`, where pyxform writes `1e-05`, and integers beyond 2^53
+  lose digits.
 - **`filterCategory` is lost.** The encoder skips it, and the decoder
   never produces it, so it does not survive either direction.
 - **Choice list with no match.** The decoder doesn't check that a

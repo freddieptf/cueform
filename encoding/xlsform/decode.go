@@ -27,6 +27,14 @@ var (
 
 	requiredSurveySheetColumns = []string{"type", "name", "label"}
 	requiredChoiceSheetColumns = []string{"list_name", "name", "label"}
+
+	// columns the schema types as string | bool
+	boolColumns = []string{"required", "read_only"}
+	// matches pyxform's aliases.BINDING_CONVERSIONS (v4.5.0); any other value is an XPath expression
+	boolValues = map[string]bool{
+		"yes": true, "Yes": true, "YES": true, "true": true, "True": true, "TRUE": true,
+		"no": false, "No": false, "NO": false, "false": false, "False": false, "FALSE": false,
+	}
 )
 
 type Decoder struct {
@@ -81,7 +89,8 @@ func parseXLSForm(r io.Reader) (*xlsForm, error) {
 		}
 	}()
 	form := xlsForm{}
-	if surveyRows, err := f.GetRows(surveySheetName); err != nil {
+	cells := newCellReader(f)
+	if surveyRows, err := cells.rows(surveySheetName); err != nil {
 		return nil, fmt.Errorf("%v: %w", err, ErrInvalidXLSForm)
 	} else {
 		if err := validXLSFormSheet(surveySheetName, surveyRows); err != nil {
@@ -92,7 +101,7 @@ func parseXLSForm(r io.Reader) (*xlsForm, error) {
 			form.survey = surveyRows[1:]
 		}
 	}
-	if choiceRows, err := f.GetRows(choiceSheetName); err != nil {
+	if choiceRows, err := cells.rows(choiceSheetName); err != nil {
 		if !errors.Is(err, excelize.ErrSheetNotExist{SheetName: choiceSheetName}) {
 			return nil, err
 		}
@@ -108,7 +117,7 @@ func parseXLSForm(r io.Reader) (*xlsForm, error) {
 			form.choices = choiceRows[1:]
 		}
 	}
-	if settingsRows, err := f.GetRows(settingsSheetName); err != nil {
+	if settingsRows, err := cells.rows(settingsSheetName); err != nil {
 		if !errors.Is(err, excelize.ErrSheetNotExist{SheetName: settingsSheetName}) {
 			return nil, err
 		}
@@ -324,6 +333,8 @@ func buildSurveyElement(nl bool, columnHeaders []string, row []string, choiceMap
 				translatables[col] = labels
 			}
 			translatables[col].Elts = append(translatables[col].Elts, &ast.Field{Label: &ast.Ident{Name: lang, NamePos: token.Newline.Pos()}, Value: ast.NewString(row[idx])})
+		} else if b, ok := boolValues[row[idx]]; ok && slices.Contains(boolColumns, header) {
+			element.Elts = append(element.Elts, &ast.Field{Label: ast.NewIdent(header), Value: ast.NewBool(b)})
 		} else {
 			element.Elts = append(element.Elts, &ast.Field{Label: ast.NewIdent(header), Value: ast.NewString(row[idx])})
 		}
@@ -375,14 +386,22 @@ func writeSheet(f *excelize.File, sheet string, headers []string, rows [][]strin
 		return err
 	}
 	setDefaultColumnWidth(sheet, f)
-	f.SetSheetRow(sheet, "A1", &headers)
+	if err := f.SetSheetRow(sheet, "A1", &headers); err != nil {
+		return err
+	}
 	for idx, row := range rows {
 		err = f.SetSheetRow(sheet, fmt.Sprintf("A%d", idx+2), &row)
 		if err != nil {
 			return err
 		}
 	}
-	return nil
+	// excelize leaves the dimension at A1, and openpyxl's read-only mode, which pyxform uses,
+	// trusts it and reads only that cell
+	lastCell, err := excelize.CoordinatesToCellName(len(headers), len(rows)+1)
+	if err != nil {
+		return err
+	}
+	return f.SetSheetDimension(sheet, "A1:"+lastCell)
 }
 
 func newConjuctionOnNewLine(info astutil.ImportInfo, def string, sl ast.Expr, newLine bool) ast.Expr {

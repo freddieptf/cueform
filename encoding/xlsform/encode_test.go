@@ -4,7 +4,27 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/xuri/excelize/v2"
 )
+
+// pyxform reads workbooks with openpyxl in read-only mode, which reads only the cells inside
+// each sheet's declared dimension
+func TestEncodeSheetDimensions(t *testing.T) {
+	buf, err := NewEncoder().Encode("testdata/form_select.cue")
+	if err != nil {
+		t.Fatal(err)
+	}
+	f, err := excelize.OpenReader(buf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for sheet, want := range map[string]string{"survey": "A1:C5", "choices": "A1:C3", "settings": "A1:D2"} {
+		if have, err := f.GetSheetDimension(sheet); err != nil || have != want {
+			t.Errorf("%s dimension: have %q (%v), want %q", sheet, have, err, want)
+		}
+	}
+}
 
 func TestEncode(t *testing.T) {
 	testCases := []struct {
@@ -71,7 +91,7 @@ func TestEncode(t *testing.T) {
 				},
 			},
 		}, {
-			file: "testdata/form_scalars.cue",
+			file: "testdata/form_strings.cue",
 			form: &xlsForm{
 				surveyColumnHeaders: []string{"type", "name", "label::English (en)", "required", "repeat_count", "read_only", "default"},
 				survey: [][]string{
@@ -104,6 +124,33 @@ func TestEncode(t *testing.T) {
 					{"end group"},
 				},
 			},
+		}, {
+			file: "testdata/form_bool.cue",
+			form: &xlsForm{
+				surveyColumnHeaders: []string{"type", "name", "label::English (en)", "required", "read_only"},
+				survey: [][]string{
+					{"text", "family_name", "What's your family name?", "yes", "no"},
+				},
+			},
+		}, {
+			// numbers are written as CUE's exact decimal
+			file: "testdata/form_number.cue",
+			form: &xlsForm{
+				surveyColumnHeaders: []string{"type", "name", "label::English (en)", "repeat_count", "default", "parameters"},
+				survey: [][]string{
+					{"begin_repeat", "members", "Members", "3"},
+					{"range", "height", "Height", "", "1.50", "start=0 end=3 step=0.5"},
+					{"integer", "count", "Count", "", "0"},
+					{"end_repeat"},
+				},
+				settingColumnHeaders: []string{"form_title", "form_id", "default_language", "version"},
+				settings: [][]string{
+					{"test", "test_id", "English (en)", "2026100101"},
+				},
+			},
+		}, {
+			file: "testdata/form_list_value.cue",
+			err:  "family_name.default: xlsform values must be strings, bools or numbers",
 		}, {
 			file: "testdata/form_invalid_type.cue",
 			err:  `family_name: "txt" is not a valid question type`,
