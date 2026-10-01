@@ -1,6 +1,8 @@
 package composition
 
 import (
+	"list"
+
 	"github.com/freddieptf/cueform/sample/composition/registration"
 	"github.com/freddieptf/cueform/xlsform"
 )
@@ -10,13 +12,13 @@ hh_registration: xlsform.#Group & {
 	name: "hh_registration"
 	label: en: "Household Registration"
 	appearance: "field-list"
-	children:   [
-			{
+	children: list.Concat([[
+		{
 			type: "note"
 			name: "note_hh_details"
 			label: en: "Please provide the household head details below"
 		},
-	] + registration.questions
+	], registration.questions])
 }
 
 hh_member_registration: xlsform.#Group & {
