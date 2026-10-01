@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"reflect"
+	"strings"
 	"testing"
 
 	"cuelang.org/go/cue/ast"
@@ -111,6 +112,27 @@ func TestBuildChoiceStructFilters(t *testing.T) {
 	}
 }
 
+// a plain label column is a single-language label; next to label::lang columns it is "default"
+func TestBuildChoiceStructPlainLabels(t *testing.T) {
+	for _, tc := range []struct {
+		columns []string
+		row     []string
+		want    string
+	}{
+		{[]string{"list_name", "name", "label"}, []string{"yes_no", "yes", "Yes"}, `yes: "Yes"`},
+		{[]string{"list_name", "name", "label", "label::fr"}, []string{"yes_no", "yes", "Yes", "Oui"}, "yes: {\n\t\t\t\tdefault: \"Yes\"\n\t\t\t\tfr:      \"Oui\"\n\t\t\t}"},
+	} {
+		choice, err := buildChoiceStruct("yes_no", tc.columns, [][]string{tc.row})
+		if err != nil {
+			t.Fatal(err)
+		}
+		b, _ := format.Node(choice, format.Simplify())
+		if !strings.Contains(string(b), tc.want) {
+			t.Errorf("%v: have\n%s\nwant it to contain\n%s", tc.columns, b, tc.want)
+		}
+	}
+}
+
 func TestBuildSurveyElementOrOther(t *testing.T) {
 	for _, typ := range []string{"select_one yes_no or_other", "select_multiple yes_no or specify other", "rank yes_no or other"} {
 		_, err := buildSurveyElement(false, []string{"type", "name", "label::en"}, []string{typ, "q", "Q"}, map[string]ast.Expr{})
@@ -128,18 +150,34 @@ func TestBuildSurveyElement(t *testing.T) {
 		err        error
 	}{
 		{
-			colHeaders: []string{"type", "name", "label"},
-			row:        []string{"note", "test", "test"},
-			err:        ErrInvalidLabel,
+			// a single-language form has plain columns
+			colHeaders: []string{"type", "name", "label", "hint", "required_message"},
+			row:        []string{"note", "test", "Name", "Full name", "Required"},
+			want: `{
+	type:             "note"
+	name:             "test"
+	label:            "Name"
+	hint:             "Full name"
+	required_message: "Required"
+}`,
+		},
+		{
+			// next to translations, a plain column is pyxform's "default" language
+			colHeaders: []string{"type", "name", "label", "label::fr", "hint"},
+			row:        []string{"note", "test", "Name", "Nom", "Full name"},
+			want: `{
+	type: "note"
+	name: "test"
+	label: {
+		default: "Name"
+		fr:      "Nom"
+	}
+	hint: "Full name"
+}`,
 		},
 		{
 			colHeaders: []string{"type", "name", "label:lang(en)"},
 			row:        []string{"note", "test", "test"},
-			err:        ErrInvalidLabel,
-		},
-		{
-			colHeaders: []string{"type", "name", "label::lang (en)", "required_message"},
-			row:        []string{"note", "test", "test", "test"},
 			err:        ErrInvalidLabel,
 		},
 		{

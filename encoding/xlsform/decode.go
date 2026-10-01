@@ -253,6 +253,7 @@ func extractChoices(columns []string, rows [][]string) map[string][][]string {
 func buildChoiceStruct(choiceListName string, columns []string, rows [][]string) (*ast.StructLit, error) {
 	entries := &ast.ListLit{Rbrack: token.Newline.Pos()}
 	choice := ast.NewStruct(&ast.Field{Label: ast.NewIdent("list_name"), Value: ast.NewString(choiceListName)}, &ast.Field{Label: ast.NewIdent("choices"), Value: entries})
+	translated := translatedColumns(columns)
 	for _, row := range rows {
 		choiceEntry := &ast.Field{}
 		filters := ast.NewStruct()
@@ -261,13 +262,17 @@ func buildChoiceStruct(choiceListName string, columns []string, rows [][]string)
 				filters.Elts = append(filters.Elts, &ast.Field{Label: ast.NewString(columns[idx]), Value: ast.NewString(colVal)})
 			} else if columns[idx] == "name" {
 				choiceEntry.Label = ast.NewIdent(colVal)
-			} else if columns[idx] == "label" {
-				return nil, ErrInvalidLabel
-			} else if strings.HasPrefix(columns[idx], "label::") {
+			} else if columns[idx] == "label" && !translated["label"] {
+				choiceEntry.Value = ast.NewString(colVal)
+			} else if columns[idx] == "label" || strings.HasPrefix(columns[idx], "label::") {
+				_, lang, err := columnLang(columns[idx], translated)
+				if err != nil {
+					return nil, err
+				}
 				if choiceEntry.Value == nil {
 					choiceEntry.Value = ast.NewStruct()
 				}
-				label := &ast.Field{Label: &ast.Ident{Name: strings.TrimPrefix(columns[idx], "label::"), NamePos: token.Newline.Pos()}, Value: ast.NewString(colVal)}
+				label := &ast.Field{Label: &ast.Ident{Name: lang, NamePos: token.Newline.Pos()}, Value: ast.NewString(colVal)}
 				choiceEntry.Value.(*ast.StructLit).Elts = append(choiceEntry.Value.(*ast.StructLit).Elts, label)
 			}
 		}
@@ -322,6 +327,7 @@ func (form *xlsForm) surveyToAst(importInfo astutil.ImportInfo, n *ast.StructLit
 func buildSurveyElement(nl bool, columnHeaders []string, row []string, choiceMap map[string]ast.Expr) (*ast.StructLit, error) {
 	element := ast.StructLit{}
 	translatables := map[string]*ast.StructLit{}
+	translated := translatedColumns(columnHeaders)
 	for idx, header := range columnHeaders {
 		if idx >= len(row) || row[idx] == "" {
 			continue
@@ -333,8 +339,8 @@ func buildSurveyElement(nl bool, columnHeaders []string, row []string, choiceMap
 				return nil, fmt.Errorf("%w: type %q", ErrOrOther, row[idx])
 			}
 			element.Elts = append(element.Elts, &ast.Field{Label: ast.NewIdent(header), Value: ast.NewString(qtype)}, &ast.Field{Label: ast.NewIdent("choices"), Value: choiceMap[list]})
-		} else if IsTranslatableColumn(header) && !slices.Contains(untranslatedCols, header) {
-			col, lang, err := GetLangFromCol(header)
+		} else if IsTranslatableColumn(header) && (strings.Contains(header, ":") || translated[header]) {
+			col, lang, err := columnLang(header, translated)
 			if err != nil {
 				return nil, err
 			}
@@ -351,6 +357,26 @@ func buildSurveyElement(nl bool, columnHeaders []string, row []string, choiceMap
 		}
 	}
 	return &element, nil
+}
+
+// translatedColumns returns the translatable columns that have at least one ::lang header
+func translatedColumns(headers []string) map[string]bool {
+	translated := map[string]bool{}
+	for _, header := range headers {
+		if col, _, ok := strings.Cut(header, "::"); ok && IsTranslatableColumn(col) {
+			translated[col] = true
+		}
+	}
+	return translated
+}
+
+// columnLang splits a translatable header into its column and language. A plain column in a
+// sheet that also has ::lang columns for it is the "default" language, as pyxform reads it.
+func columnLang(header string, translated map[string]bool) (string, string, error) {
+	if translated[header] {
+		return header, "default", nil
+	}
+	return GetLangFromCol(header)
 }
 
 func (form *xlsForm) settingsToAst(importInfo astutil.ImportInfo) *ast.Field {

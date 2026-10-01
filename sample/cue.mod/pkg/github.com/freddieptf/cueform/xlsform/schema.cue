@@ -4,6 +4,9 @@ import "list"
 
 #Translatable: [string]: string
 
+// a single-language value, or one value per language
+#Text: string | #Translatable
+
 // Question types shown to the person filling in the form; they need a label.
 #LabelledQuestionType: "select_one" | "select_multiple" | "select_one_from_file" | "select_multiple_from_file" | "select_one_external" |
 	"rank" | "text" | "integer" | "decimal" | "range" | "date" | "time" | "dateTime" | "geopoint" | "image" | "audio" | "video" | "file" | "note" |
@@ -18,17 +21,17 @@ import "list"
 #Question: {
 	type:                #QuestionType
 	name:                string
-	label?:              #Translatable
+	label?:              #Text
 	constraint?:         string
-	constraint_message?: #Translatable
-	hint?:               #Translatable
-	guidance_hint?:      string | #Translatable
-	image?:              string | #Translatable
-	"big-image"?:        string | #Translatable
-	audio?:              string | #Translatable
-	video?:              string | #Translatable
+	constraint_message?: #Text
+	hint?:               #Text
+	guidance_hint?:      #Text
+	image?:              #Text
+	"big-image"?:        #Text
+	audio?:              #Text
+	video?:              #Text
 	required?:           string | bool
-	required_message?:   #Translatable
+	required_message?:   #Text
 	relevant?:           string
 	choices?:            #Choices
 	choice_filter?:      string
@@ -36,7 +39,7 @@ import "list"
 	calculation?:        string
 	appearance?:         string
 	if !list.Contains(#UnlabelledQuestionTypes, type) {
-		label!: #Translatable
+		label!: #Text
 	}
 	...
 }
@@ -46,7 +49,7 @@ import "list"
 #Group: {
 	type:        #GroupType
 	name:        string
-	label:       #Translatable
+	label:       #Text
 	relevant?:   string
 	appearance?: #GroupAppearance
 	children?: [...]
@@ -54,7 +57,7 @@ import "list"
 }
 
 #Choice: {
-	[string]: #Translatable
+	[string]: #Text
 	filterCategory?: [string]: string
 }
 

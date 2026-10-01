@@ -46,19 +46,21 @@ var (
 
 The decoder returns these errors. `ErrInvalidXLSForm` means a required
 sheet is missing or empty. `ErrInvalidXLSFormSheet` means a sheet is
-missing a required column. `ErrInvalidLabel` means a translatable column
-has no `::lang` suffix. `GetLangFromCol` wraps `ErrInvalidLabel`, so
-check for it with `errors.Is`.
+missing a required column. `ErrInvalidLabel` means a translatable
+column header is malformed, such as `label:en` with a single colon.
+`GetLangFromCol` wraps `ErrInvalidLabel`, so check for it with
+`errors.Is`.
 
 ```go
 var TranslatableCols = []string{"label", "required_message", "constraint_message", "hint", "guidance_hint", "image", "big-image", "audio", "video"}
 ```
 
 TranslatableCols lists the columns that can hold one value per language.
-In CUE these are structs that map a language to text. In XLSForm they
-are spread across `column::language` headers. `guidance_hint` and the
-media columns (`image`, `big-image`, `audio`, `video`) can also be a
-single plain value with no language, such as `image: "logo.png"`.
+In CUE a translated value is a struct that maps a language to text, and
+in XLSForm it is spread across `column::language` headers. Any of these
+columns can instead hold one plain value, as in a single-language form:
+`label: "Name"` is a `label` column with no language. The schema calls
+this type `#Text`, `string | #Translatable`.
 
 ## func IsTranslatableColumn
 
@@ -269,9 +271,10 @@ form_settings: xlsform.#Settings & {
 - Translatable columns (`label`, `hint`, `guidance_hint`,
   `required_message`, `constraint_message`, and the media columns
   `image`, `big-image`, `audio` and `video`) map a language to text. The
-  language key becomes the `::` suffix of the XLSForm header.
-  `guidance_hint` and the media columns can also be a plain value,
-  written to a column with no language: `image: "logo.png"`.
+  language key becomes the `::` suffix of the XLSForm header. In a
+  single-language form any of them, and choice labels, can be a plain
+  value written to a column with no language: `label: "Name"`,
+  `{yes: "Yes"}`.
 
 ## Encoding rules
 
@@ -430,9 +433,10 @@ a workbook pyxform reads the same way.
   optional sheet is missing, the decoder logs that and keeps going.
 
 **Choices.** Rows are grouped by `list_name`. Each row becomes
-`{<name>: {<lang>: <label>}}` in that list's `choices`. The list is
-wrapped as `pkg.#Choices & {...}`. A plain `label` column with no
-language returns `ErrInvalidLabel`. Other columns with a value become
+`{<name>: {<lang>: <label>}}` in that list's `choices`, or
+`{<name>: <label>}` when the sheet has a single plain `label` column.
+The list is wrapped as `pkg.#Choices & {...}`. Other columns with a
+value become
 the entry's `filterCategory`, as in
 `{nairobi: en: "Nairobi", filterCategory: country: "ke"}`. Media columns
 (`image`, `audio`, `video`, `big-image`, `media::*`) are dropped.
@@ -449,11 +453,12 @@ the entry's `filterCategory`, as in
   `type: "select_<x>"` (or `"rank"`) and a `choices` field that holds the
   decoded `<list>` from the choices sheet. A suffix after the list name,
   such as `or_other`, fails with `ErrOrOther`.
-- A translatable header must have the form `col::lang`. It becomes a
-  struct `col: {lang: text}`. If it has no language, decoding fails with
-  `ErrInvalidLabel`. The exceptions are `guidance_hint` and the media
-  columns, which can be plain: an `image` column decodes as
-  `image: "logo.png"`.
+- A translatable header `col::lang` becomes a struct
+  `col: {lang: text}`. A plain `col` header becomes a plain value,
+  `label: "Name"`, unless the sheet also has `col::lang` headers. In that
+  case it is pyxform's `default` language: `label` with `label::fr`
+  decodes as `label: {default: "Name", fr: "Nom"}`. A malformed header
+  such as `label:en` fails with `ErrInvalidLabel`.
 - In the `required` and `read_only` columns, the exact values `yes`,
   `Yes`, `YES`, `true`, `True` and `TRUE` become `true`, and `no`, `No`,
   `NO`, `false`, `False` and `FALSE` become `false`. This is the same

@@ -193,6 +193,20 @@ func TestEncode(t *testing.T) {
 				},
 			},
 		}, {
+			// a single-language form uses plain columns, with no ::lang
+			file: "testdata/form_single_language.cue",
+			form: &xlsForm{
+				surveyColumnHeaders: []string{"type", "name", "label", "hint"},
+				survey: [][]string{
+					{"select_one yes_no", "smokes", "Do you smoke?", "Include e-cigarettes"},
+				},
+				choiceColumnHeaders: []string{"list_name", "name", "label"},
+				choices: [][]string{
+					{"yes_no", "yes", "Yes"},
+					{"yes_no", "no", "No"},
+				},
+			},
+		}, {
 			file: "testdata/form_or_other.cue",
 			err:  "favourite.or_other: or_other is not supported",
 		}, {
