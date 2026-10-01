@@ -41,6 +41,9 @@ import "list"
 	if !list.Contains(#UnlabelledQuestionTypes, type) {
 		label!: #Text
 	}
+	if list.Contains(["select_one", "select_multiple", "rank"], type) {
+		choices!: #Choices
+	}
 	...
 }
 

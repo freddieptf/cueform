@@ -207,6 +207,9 @@ func TestEncode(t *testing.T) {
 				},
 			},
 		}, {
+			file: "testdata/form_select_no_choices.cue",
+			err:  "smokes does not match the schema: #Question.choices: field is required but not present",
+		}, {
 			file: "testdata/form_or_other.cue",
 			err:  "favourite.or_other: or_other is not supported",
 		}, {

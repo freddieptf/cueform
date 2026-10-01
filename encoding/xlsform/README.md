@@ -292,6 +292,9 @@ against `#Question`.
   concrete. Failures name the element's path, such as
   `father.children[0] does not match the schema`, followed by the CUE
   error details.
+- `choices` is required on `select_one`, `select_multiple` and `rank`
+  questions; without it, the element fails with
+  `#Question.choices: field is required but not present`.
 - `label` is required except on types that are never shown:
   `calculate`, `hidden`, `background-audio`, `xml-external`,
   `csv-external` and the metadata types (`start`, `end`, `today`,
