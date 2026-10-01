@@ -323,13 +323,7 @@ against `#Question`.
   `<path>: xlsform values must be strings, bools or numbers`.
 - If `type` starts with `select_` or is `rank`, the encoder writes the
   type column as `"<type> <choices.list_name>"`, for example
-  `select_one ages` or `rank ages`. `or_other: true` adds the `or_other`
-  suffix (`select_one ages or_other`), and pyxform then adds an "Other"
-  choice and a `<name>_other` text question. `or_other` is never a
-  column of its own. On a type without a choice list, it fails with
-  `<path>: or_other needs a select or rank question, not "text"`.
-  Combined with `choice_filter`, which pyxform rejects, it fails with
-  `<path>: or_other can't be used with choice_filter`.
+  `select_one ages` or `rank ages`.
 - If `type` starts with `begin_` or `begin `, the encoder writes the
   group row, then each child, then a closing row. The closing row keeps
   the same separator: `begin_repeat` is closed with `end_repeat`, and
@@ -448,9 +442,7 @@ the entry's `filterCategory`, as in
 - Every other row becomes `pkg.#Question & {...}`.
 - A type of `select_<x> <list>` or `rank <list>` is split into
   `type: "select_<x>"` (or `"rank"`) and a `choices` field that holds the
-  decoded `<list>` from the choices sheet. A trailing `or_other`,
-  `or other` or `or specify other` (pyxform's spellings) becomes
-  `or_other: true`. Any other suffix is an error.
+  decoded `<list>` from the choices sheet.
 - A translatable header must have the form `col::lang`. It becomes a
   struct `col: {lang: text}`. If it has no language, decoding fails with
   `ErrInvalidLabel`. The exceptions are `guidance_hint` and the media
@@ -498,10 +490,6 @@ These describe current behavior. Most are bugs or gaps.
 - **Unusual numbers differ from pyxform.** Numbers below 0.0001 decode
   as `0.00001`, where pyxform writes `1e-05`, and integers beyond 2^53
   lose digits.
-- **`or_other` changes a shared list for every question.** pyxform adds
-  the "other" choice to the list itself. Another question using the same
-  `list_name` without `or_other` then offers "Other" too, with no text
-  question to fill in. Give `or_other` questions their own list.
 - **Choice media is lost.** The encoder can't write choice `image`,
   `audio` or `video` columns, and the decoder drops them.
 - **Choice list with no match.** The decoder doesn't check that a

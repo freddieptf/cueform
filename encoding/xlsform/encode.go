@@ -171,16 +171,6 @@ func (e *encodeState) elementToRows(val *cue.Value, rows *[]map[string]string, c
 		return fmt.Errorf("%s does not match the schema: %s", val.Path(), errors.Details(err, nil))
 	}
 
-	if orOther, _ := val.LookupPath(cue.ParsePath("or_other")).Bool(); orOther {
-		if !usesChoices(elementType) {
-			return fmt.Errorf("%s: or_other needs a select or rank question, not %q", val.Path(), elementType)
-		}
-		// pyxform rejects this pair, since the generated "other" choice can't be filtered
-		if val.LookupPath(cue.ParsePath("choice_filter")).Exists() {
-			return fmt.Errorf("%s: or_other can't be used with choice_filter", val.Path())
-		}
-	}
-
 	row, err := fieldsToRow(val, e.surveyColHeaders)
 	if err != nil {
 		return err
@@ -234,8 +224,7 @@ func fieldsToRow(val *cue.Value, keys map[string]struct{}) (map[string]string, e
 	result := map[string]string{}
 	for elIter.Next() {
 		key := elIter.Label()
-		// choices and or_other are written as part of the type column
-		if key == "children" || key == "choices" || key == "or_other" {
+		if key == "children" || key == "choices" {
 			continue
 		}
 		// a translatable field is a {lang: text} struct; media and guidance_hint may also be plain
@@ -255,9 +244,6 @@ func fieldsToRow(val *cue.Value, keys map[string]struct{}) (map[string]string, e
 					return nil, err
 				}
 				result[key] = fmt.Sprintf("%s %s", keyVal, listName)
-				if orOther, _ := val.LookupPath(cue.ParsePath("or_other")).Bool(); orOther {
-					result[key] += " or_other"
-				}
 			} else {
 				result[key] = keyVal
 			}

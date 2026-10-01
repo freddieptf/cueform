@@ -193,27 +193,6 @@ func TestEncode(t *testing.T) {
 				},
 			},
 		}, {
-			// or_other is written as a suffix on the type, never as its own column
-			file: "testdata/form_or_other.cue",
-			form: &xlsForm{
-				surveyColumnHeaders: []string{"type", "name", "label::en"},
-				survey: [][]string{
-					{"select_one fruit or_other", "favourite", "Favourite fruit"},
-					{"select_multiple fruit", "eaten", "Fruit eaten today"},
-				},
-				choiceColumnHeaders: []string{"list_name", "name", "label::en"},
-				choices: [][]string{
-					{"fruit", "apple", "Apple"},
-					{"fruit", "mango", "Mango"},
-				},
-			},
-		}, {
-			file: "testdata/form_or_other_text.cue",
-			err:  `nickname: or_other needs a select or rank question, not "text"`,
-		}, {
-			file: "testdata/form_or_other_filter.cue",
-			err:  "city: or_other can't be used with choice_filter",
-		}, {
 			file: "testdata/form_reserved_filter.cue",
 			err:  `city.choices.choices[0].filterCategory: "image" is a choices sheet column, not a filter`,
 		}, {

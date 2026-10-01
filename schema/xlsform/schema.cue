@@ -31,7 +31,6 @@ import "list"
 	required_message?:   #Translatable
 	relevant?:           string
 	choices?:            #Choices
-	or_other?:           bool
 	choice_filter?:      string
 	read_only?:          string | bool
 	calculation?:        string

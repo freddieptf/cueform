@@ -326,16 +326,7 @@ func buildSurveyElement(nl bool, columnHeaders []string, row []string, choiceMap
 		}
 		qtype, choice, hasList := strings.Cut(row[idx], " ")
 		if header == "type" && hasList && usesChoices(qtype) {
-			list, suffix, _ := strings.Cut(strings.TrimSpace(choice), " ")
-			element.Elts = append(element.Elts, &ast.Field{Label: ast.NewIdent(header), Value: ast.NewString(qtype)}, &ast.Field{Label: ast.NewIdent("choices"), Value: choiceMap[list]})
-			switch strings.TrimSpace(suffix) {
-			case "":
-			// pyxform's spellings of the suffix
-			case "or_other", "or other", "or specify other":
-				element.Elts = append(element.Elts, &ast.Field{Label: ast.NewIdent("or_other"), Value: ast.NewBool(true)})
-			default:
-				return nil, fmt.Errorf("unknown suffix %q in type %q", suffix, row[idx])
-			}
+			element.Elts = append(element.Elts, &ast.Field{Label: ast.NewIdent(header), Value: ast.NewString(qtype)}, &ast.Field{Label: ast.NewIdent("choices"), Value: choiceMap[strings.TrimSpace(choice)]})
 		} else if IsTranslatableColumn(header) && !slices.Contains(untranslatedCols, header) {
 			col, lang, err := GetLangFromCol(header)
 			if err != nil {
