@@ -149,6 +149,25 @@ func TestEncode(t *testing.T) {
 				},
 			},
 		}, {
+			// a list shared by several questions is written once; rank takes a list like the selects
+			file: "testdata/form_shared_choices.cue",
+			form: &xlsForm{
+				surveyColumnHeaders: []string{"type", "name", "label::en"},
+				survey: [][]string{
+					{"select_one yes_no", "smokes", "Do you smoke?"},
+					{"select_multiple yes_no", "drinks", "Which do you drink?"},
+					{"rank yes_no", "ranked", "Rank these"},
+				},
+				choiceColumnHeaders: []string{"list_name", "name", "label::en"},
+				choices: [][]string{
+					{"yes_no", "yes", "Yes"},
+					{"yes_no", "no", "No"},
+				},
+			},
+		}, {
+			file: "testdata/form_conflicting_choices.cue",
+			err:  `drinks.choices: choice list "yes_no" differs from the one at smokes.choices`,
+		}, {
 			file: "testdata/form_list_value.cue",
 			err:  "family_name.default: xlsform values must be strings, bools or numbers",
 		}, {

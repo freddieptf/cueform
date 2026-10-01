@@ -126,6 +126,17 @@ func TestBuildSurveyElement(t *testing.T) {
 }`,
 		},
 		{
+			// rank takes a choice list like the select types
+			colHeaders: []string{"type", "name", "label::lang (en)"},
+			row:        []string{"rank yes_no", "test", "test"},
+			want: `{
+	type:    "rank"
+	choices: yes_no
+	name:    "test"
+	label: "lang (en)": "test"
+}`,
+		},
+		{
 			colHeaders: []string{"type", "name", "label::lang (en)", "required", "read_only"},
 			row:        []string{"text", "test", "test", "${age} >= 18", "true()"},
 			want: `{
@@ -137,7 +148,7 @@ func TestBuildSurveyElement(t *testing.T) {
 }`,
 		},
 	}
-	choiceMap := make(map[string]ast.Expr)
+	choiceMap := map[string]ast.Expr{"yes_no": ast.NewIdent("yes_no")}
 	for _, tc := range testCases {
 		result, err := buildSurveyElement(true, tc.colHeaders, tc.row, choiceMap)
 		if err != nil && !errors.Is(tc.err, ErrInvalidLabel) {

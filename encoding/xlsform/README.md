@@ -313,8 +313,9 @@ against `#Question`.
   `repeat_count`, `default` and the settings `version` take numbers. A
   list or struct fails with
   `<path>: xlsform values must be strings, bools or numbers`.
-- If `type` starts with `select_`, the encoder writes the type column as
-  `"<type> <choices.list_name>"`, for example `select_one ages`.
+- If `type` starts with `select_` or is `rank`, the encoder writes the
+  type column as `"<type> <choices.list_name>"`, for example
+  `select_one ages` or `rank ages`.
 - If `type` starts with `begin_` or `begin `, the encoder writes the
   group row, then each child, then a closing row. The closing row keeps
   the same separator: `begin_repeat` is closed with `end_repeat`, and
@@ -323,12 +324,14 @@ against `#Question`.
 
 **Choices sheet.** Written only if at least one choice row exists.
 
-- Each `select_*` question adds a `list_name`, `name` and `label::lang`
-  row for every choice, in order.
+- Each `select_*` or `rank` question adds a `list_name`, `name` and
+  `label::lang` row for every choice, in order.
+- Each list is written once, however many questions use it. pyxform
+  rejects a list whose choice names repeat. If two questions use the same
+  `list_name` with different choices, encoding fails with
+  `<path>: choice list "yes_no" differs from the one at <first path>; give one of them another list_name`.
 - The `filterCategory` key in a choice entry is skipped and not
   written.
-- Choice lists are not de-duplicated. If two questions use the same
-  list, its rows are written twice.
 
 **Settings sheet.** Written only if `form_settings` exists. Its fields
 become a single row. The `type` field is removed.
@@ -421,9 +424,9 @@ language returns `ErrInvalidLabel`. Columns other than `name` and
   rows after it, up to the next row whose type starts with `end`, go
   into its `children`. Groups can be nested.
 - Every other row becomes `pkg.#Question & {...}`.
-- A type of `select_<x> <list>` is split into `type: "select_<x>"` and a
-  `choices` field that holds the decoded `<list>` from the choices
-  sheet.
+- A type of `select_<x> <list>` or `rank <list>` is split into
+  `type: "select_<x>"` (or `"rank"`) and a `choices` field that holds the
+  decoded `<list>` from the choices sheet.
 - A translatable header must have the form `col::lang`. It becomes a
   struct `col: {lang: text}`. If it has no language, decoding fails with
   `ErrInvalidLabel`.

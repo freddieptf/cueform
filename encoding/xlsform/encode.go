@@ -3,6 +3,7 @@ package xlsform
 import (
 	"bytes"
 	"fmt"
+	"reflect"
 	"regexp"
 	"slices"
 	"strings"
@@ -57,6 +58,7 @@ func (c *CueForm) toXLSForm() (*xlsForm, error) {
 	state := &encodeState{
 		surveyColHeaders: make(map[string]struct{}),
 		choiceColHeaders: make(map[string]struct{}),
+		choiceLists:      make(map[string]choiceList),
 	}
 	if len(c.SurveyElements) > 0 {
 		// the schema must be built in the same context as the form for Unify to work
@@ -130,10 +132,22 @@ type encodeState struct {
 	questionType     cue.Value
 	group            cue.Value
 	groupType        cue.Value
+	// choice lists already written, by list_name
+	choiceLists map[string]choiceList
+}
+
+type choiceList struct {
+	rows []map[string]string
+	path cue.Path
 }
 
 func isGroupType(elementType string) bool {
 	return strings.HasPrefix(elementType, "begin_") || strings.HasPrefix(elementType, "begin ")
+}
+
+// usesChoices reports whether a question type takes a choice list, written as "<type> <list_name>"
+func usesChoices(elementType string) bool {
+	return strings.HasPrefix(elementType, "select_") || elementType == "rank"
 }
 
 func (e *encodeState) elementToRows(val *cue.Value, rows *[]map[string]string, choices *[]map[string]string) error {
@@ -161,13 +175,22 @@ func (e *encodeState) elementToRows(val *cue.Value, rows *[]map[string]string, c
 	}
 	*rows = append(*rows, row)
 
-	if strings.HasPrefix(elementType, "select_") {
+	if usesChoices(elementType) {
 		choiceStruct := val.LookupPath(cue.ParsePath("choices"))
 		c, err := choiceStructToRows(&choiceStruct, e.choiceColHeaders)
 		if err != nil {
 			return err
 		}
-		*choices = append(*choices, c...)
+		listName := c[0]["list_name"]
+		// questions often share a list; pyxform rejects a list whose rows appear twice
+		if first, ok := e.choiceLists[listName]; ok {
+			if !reflect.DeepEqual(first.rows, c) {
+				return fmt.Errorf("%s: choice list %q differs from the one at %s; give one of them another list_name", choiceStruct.Path(), listName, first.path)
+			}
+		} else {
+			e.choiceLists[listName] = choiceList{rows: c, path: choiceStruct.Path()}
+			*choices = append(*choices, c...)
+		}
 	}
 
 	if isGroupType(elementType) {
@@ -211,7 +234,7 @@ func fieldsToRow(val *cue.Value, keys map[string]struct{}) (map[string]string, e
 			if err != nil {
 				return nil, err
 			}
-			if key == "type" && strings.HasPrefix(keyVal, "select_") {
+			if key == "type" && usesChoices(keyVal) {
 				choiceStruct := val.LookupPath(cue.ParsePath("choices"))
 				listName, err := choiceStruct.LookupPath(cue.ParsePath("list_name")).String()
 				if err != nil {
