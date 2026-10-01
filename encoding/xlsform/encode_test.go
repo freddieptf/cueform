@@ -210,6 +210,13 @@ func TestEncode(t *testing.T) {
 			file: "testdata/form_select_no_choices.cue",
 			err:  "smokes does not match the schema: #Question.choices: field is required but not present",
 		}, {
+			// names must be unique within their group; the first "age" child is fine
+			file: "testdata/form_duplicate_name.cue",
+			err:  `father.children[1]: name "age" is already used at father.children[0]; names must be unique`,
+		}, {
+			file: "testdata/form_duplicate_repeat.cue",
+			err:  `father.children[0]: repeat name "children" is already used at mother.children[0]`,
+		}, {
 			file: "testdata/form_or_other.cue",
 			err:  "favourite.or_other: or_other is not supported",
 		}, {

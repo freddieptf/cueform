@@ -292,6 +292,11 @@ against `#Question`.
   concrete. Failures name the element's path, such as
   `father.children[0] does not match the schema`, followed by the CUE
   error details.
+- Names must be unique within their group, repeat or survey, and repeat
+  names must be unique in the whole form, as pyxform requires. A
+  duplicate fails with both paths, for example
+  `father.children[1]: name "age" is already used at father.children[0]`.
+  The same name in different groups is fine.
 - `choices` is required on `select_one`, `select_multiple` and `rank`
   questions; without it, the element fails with
   `#Question.choices: field is required but not present`.

@@ -59,6 +59,7 @@ func (c *CueForm) toXLSForm() (*xlsForm, error) {
 		surveyColHeaders: make(map[string]struct{}),
 		choiceColHeaders: make(map[string]struct{}),
 		choiceLists:      make(map[string]choiceList),
+		repeatNames:      make(map[string]cue.Path),
 	}
 	if len(c.SurveyElements) > 0 {
 		// the schema must be built in the same context as the form for Unify to work
@@ -72,8 +73,9 @@ func (c *CueForm) toXLSForm() (*xlsForm, error) {
 		state.groupType = s.LookupPath(cue.MakePath(cue.Def("GroupType")))
 	}
 
+	topLevel := map[string]cue.Path{}
 	for _, element := range c.SurveyElements {
-		err := state.elementToRows(element, &survey, &choices)
+		err := state.elementToRows(element, &survey, &choices, topLevel)
 		if err != nil {
 			return nil, err
 		}
@@ -134,6 +136,8 @@ type encodeState struct {
 	groupType        cue.Value
 	// choice lists already written, by list_name
 	choiceLists map[string]choiceList
+	// repeat names must be unique in the whole form
+	repeatNames map[string]cue.Path
 }
 
 type choiceList struct {
@@ -150,7 +154,9 @@ func usesChoices(elementType string) bool {
 	return strings.HasPrefix(elementType, "select_") || elementType == "rank"
 }
 
-func (e *encodeState) elementToRows(val *cue.Value, rows *[]map[string]string, choices *[]map[string]string) error {
+// siblings holds the names used so far in the element's group, repeat or survey; pyxform
+// requires names to be unique there
+func (e *encodeState) elementToRows(val *cue.Value, rows *[]map[string]string, choices *[]map[string]string, siblings map[string]cue.Path) error {
 	elementTypeVal := val.LookupPath(cue.ParsePath("type"))
 	elementType, err := elementTypeVal.String()
 	if err != nil {
@@ -167,6 +173,21 @@ func (e *encodeState) elementToRows(val *cue.Value, rows *[]map[string]string, c
 	}
 	if err := def.Unify(*val).Validate(cue.Concrete(true)); err != nil {
 		return fmt.Errorf("%s does not match the schema: %s", val.Path(), errors.Details(err, nil))
+	}
+
+	name, err := val.LookupPath(cue.ParsePath("name")).String()
+	if err != nil {
+		return fmt.Errorf("%s: %s", val.Path(), errors.Details(err, nil))
+	}
+	if first, ok := siblings[name]; ok {
+		return fmt.Errorf("%s: name %q is already used at %s; names must be unique within their group, repeat or survey", val.Path(), name, first)
+	}
+	siblings[name] = val.Path()
+	if strings.HasSuffix(elementType, "repeat") {
+		if first, ok := e.repeatNames[name]; ok {
+			return fmt.Errorf("%s: repeat name %q is already used at %s; repeat names must be unique in the form", val.Path(), name, first)
+		}
+		e.repeatNames[name] = val.Path()
 	}
 
 	row, err := fieldsToRow(val, e.surveyColHeaders)
@@ -200,9 +221,10 @@ func (e *encodeState) elementToRows(val *cue.Value, rows *[]map[string]string, c
 			if err != nil {
 				return err
 			}
+			groupNames := map[string]cue.Path{}
 			for iter.Next() {
 				child := iter.Value()
-				if err := e.elementToRows(&child, rows, choices); err != nil {
+				if err := e.elementToRows(&child, rows, choices, groupNames); err != nil {
 					return err
 				}
 			}
