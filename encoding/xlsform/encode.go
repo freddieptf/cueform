@@ -52,6 +52,14 @@ func parseCueFormFromVal(val *cue.Value) (*CueForm, error) {
 	return form, nil
 }
 
+// anyValue returns a value of the form, for its cue.Context
+func (c *CueForm) anyValue() *cue.Value {
+	if len(c.SurveyElements) > 0 {
+		return c.SurveyElements[0]
+	}
+	return c.Settings
+}
+
 func (c *CueForm) toXLSForm() (*xlsForm, error) {
 	survey := []map[string]string{}
 	choices := []map[string]string{}
@@ -61,9 +69,10 @@ func (c *CueForm) toXLSForm() (*xlsForm, error) {
 		choiceLists:      make(map[string]choiceList),
 		repeatNames:      make(map[string]cue.Path),
 	}
-	if len(c.SurveyElements) > 0 {
+	var settings cue.Value
+	if form := c.anyValue(); form != nil {
 		// the schema must be built in the same context as the form for Unify to work
-		s := c.SurveyElements[0].Context().CompileBytes(schema.XLSForm, cue.Filename("xlsform/schema.cue"))
+		s := form.Context().CompileBytes(schema.XLSForm, cue.Filename("xlsform/schema.cue"))
 		if s.Err() != nil {
 			return nil, fmt.Errorf("error compiling schema: %s", errors.Details(s.Err(), nil))
 		}
@@ -71,6 +80,7 @@ func (c *CueForm) toXLSForm() (*xlsForm, error) {
 		state.questionType = s.LookupPath(cue.MakePath(cue.Def("QuestionType")))
 		state.group = s.LookupPath(cue.MakePath(cue.Def("Group")))
 		state.groupType = s.LookupPath(cue.MakePath(cue.Def("GroupType")))
+		settings = s.LookupPath(cue.MakePath(cue.Def("Settings")))
 	}
 
 	topLevel := map[string]cue.Path{}
@@ -108,6 +118,9 @@ func (c *CueForm) toXLSForm() (*xlsForm, error) {
 	}
 
 	if c.Settings != nil {
+		if err := settings.Unify(*c.Settings).Validate(cue.Concrete(true)); err != nil {
+			return nil, fmt.Errorf("%s does not match the schema: %s", c.Settings.Path(), errors.Details(err, nil))
+		}
 		settingHeaders := map[string]struct{}{}
 		row, err := fieldsToRow(c.Settings, settingHeaders)
 		if err != nil {

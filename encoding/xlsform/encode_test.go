@@ -217,6 +217,18 @@ func TestEncode(t *testing.T) {
 			file: "testdata/form_duplicate_repeat.cue",
 			err:  `father.children[0]: repeat name "children" is already used at mother.children[0]`,
 		}, {
+			// every settings column is optional
+			file: "testdata/form_settings_minimal.cue",
+			form: &xlsForm{
+				surveyColumnHeaders:  []string{"type", "name", "label"},
+				survey:               [][]string{{"note", "intro", "Welcome"}},
+				settingColumnHeaders: []string{"form_title"},
+				settings:             [][]string{{"Minimal"}},
+			},
+		}, {
+			file: "testdata/form_settings_invalid.cue",
+			err:  "form_settings does not match the schema: #Settings.default_language: conflicting values",
+		}, {
 			file: "testdata/form_or_other.cue",
 			err:  "favourite.or_other: or_other is not supported",
 		}, {

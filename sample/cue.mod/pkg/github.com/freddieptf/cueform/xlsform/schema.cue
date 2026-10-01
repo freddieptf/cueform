@@ -69,14 +69,15 @@ import "list"
 	choices: [...#Choice]
 }
 
+// every settings column is optional in XLSForm
 #Settings: {
-	form_title:       string
-	form_id:          string
-	public_key?:      string
-	submission_url?:  string
-	default_language: string
-	style?:           string
-	version:          string
-	instance_name?:   string
+	form_title?:       string
+	form_id?:          string
+	public_key?:       string
+	submission_url?:   string
+	default_language?: string
+	style?:            string
+	version?:          string | number
+	instance_name?:    string
 	...
 }

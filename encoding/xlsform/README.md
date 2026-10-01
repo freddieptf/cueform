@@ -307,7 +307,10 @@ against `#Question`.
 - Both definitions end in `...`, because XLSForm allows extra columns.
   Unknown fields are accepted, so a misspelled optional field is not
   caught.
-- `form_settings` is not validated.
+- `form_settings` is checked against `#Settings`. Every settings column
+  is optional, as in the XLSForm spec. `version` takes a string or a
+  number, and the others take strings, so `default_language: true`
+  fails with `form_settings does not match the schema`.
 
 **Survey sheet.** Elements are written depth-first in source order.
 
