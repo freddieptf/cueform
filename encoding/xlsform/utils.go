@@ -36,11 +36,17 @@ func GetLangFromCol(translatableColumn string) (col string, lang string, err err
 }
 
 func LoadInstance(path string) ([]*build.Instance, error) {
-	formPaths := []string{path}
-	if _, err := os.Stat(filepath.Join(filepath.Dir(path), "labels.cue")); err == nil {
-		formPaths = append(formPaths, filepath.Join(filepath.Dir(path), "labels.cue"))
+	path, err := filepath.Abs(path)
+	if err != nil {
+		return nil, err
 	}
-	bis := load.Instances(formPaths, &load.Config{ModuleRoot: ""})
+	dir := filepath.Dir(path)
+	formPaths := []string{path}
+	if _, err := os.Stat(filepath.Join(dir, "labels.cue")); err == nil {
+		formPaths = append(formPaths, filepath.Join(dir, "labels.cue"))
+	}
+	// Dir makes CUE look for cue.mod from the form's directory rather than the working directory
+	bis := load.Instances(formPaths, &load.Config{Dir: dir})
 	if bis[0].Err != nil {
 		return nil, fmt.Errorf("error during load: %s", errors.Details(bis[0].Err, nil))
 	}

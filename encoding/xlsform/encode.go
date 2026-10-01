@@ -5,9 +5,12 @@ import (
 	"fmt"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 
 	"cuelang.org/go/cue"
+	"cuelang.org/go/cue/errors"
+	"github.com/freddieptf/cueform/schema"
 	"github.com/xuri/excelize/v2"
 )
 
@@ -55,6 +58,17 @@ func (c *CueForm) toXLSForm() (*xlsForm, error) {
 	state := &encodeState{
 		surveyColHeaders: make(map[string]struct{}),
 		choiceColHeaders: make(map[string]struct{}),
+	}
+	if len(c.SurveyElements) > 0 {
+		// the schema must be built in the same context as the form for Unify to work
+		s := c.SurveyElements[0].Context().CompileBytes(schema.XLSForm, cue.Filename("xlsform/schema.cue"))
+		if s.Err() != nil {
+			return nil, fmt.Errorf("error compiling schema: %s", errors.Details(s.Err(), nil))
+		}
+		state.question = s.LookupPath(cue.MakePath(cue.Def("Question")))
+		state.questionType = s.LookupPath(cue.MakePath(cue.Def("QuestionType")))
+		state.group = s.LookupPath(cue.MakePath(cue.Def("Group")))
+		state.groupType = s.LookupPath(cue.MakePath(cue.Def("GroupType")))
 	}
 
 	for _, element := range c.SurveyElements {
@@ -113,13 +127,33 @@ func (c *CueForm) toXLSForm() (*xlsForm, error) {
 type encodeState struct {
 	surveyColHeaders map[string]struct{}
 	choiceColHeaders map[string]struct{}
+	question         cue.Value
+	questionType     cue.Value
+	group            cue.Value
+	groupType        cue.Value
+}
+
+func isGroupType(elementType string) bool {
+	return strings.HasPrefix(elementType, "begin_") || strings.HasPrefix(elementType, "begin ")
 }
 
 func (e *encodeState) elementToRows(val *cue.Value, rows *[]map[string]string, choices *[]map[string]string) error {
 	elementTypeVal := val.LookupPath(cue.ParsePath("type"))
 	elementType, err := elementTypeVal.String()
 	if err != nil {
-		return err
+		return fmt.Errorf("%s: %s", val.Path(), errors.Details(err, nil))
+	}
+
+	def, typeDef, kind := e.question, e.questionType, "question"
+	if isGroupType(elementType) {
+		def, typeDef, kind = e.group, e.groupType, "group"
+	}
+	// checked on its own because a failed disjunction reports every alternative
+	if err := typeDef.Unify(elementTypeVal).Validate(cue.Concrete(true)); err != nil {
+		return fmt.Errorf("%s: %q is not a valid %s type", val.Path(), elementType, kind)
+	}
+	if err := def.Unify(*val).Validate(cue.Concrete(true)); err != nil {
+		return fmt.Errorf("%s does not match the schema: %s", val.Path(), errors.Details(err, nil))
 	}
 
 	row, err := fieldsToRow(val, e.surveyColHeaders)
@@ -137,7 +171,7 @@ func (e *encodeState) elementToRows(val *cue.Value, rows *[]map[string]string, c
 		*choices = append(*choices, c...)
 	}
 
-	if strings.HasPrefix(elementType, "begin_") {
+	if isGroupType(elementType) {
 		children := val.LookupPath(cue.ParsePath("children"))
 		if children.Exists() {
 			iter, err := getIter(&children)
@@ -146,10 +180,13 @@ func (e *encodeState) elementToRows(val *cue.Value, rows *[]map[string]string, c
 			}
 			for iter.Next() {
 				child := iter.Value()
-				e.elementToRows(&child, rows, choices)
+				if err := e.elementToRows(&child, rows, choices); err != nil {
+					return err
+				}
 			}
 		}
-		endTag := fmt.Sprintf("end_%s", strings.TrimPrefix(elementType, "begin_"))
+		// keeps the separator, so "begin group" closes with "end group"
+		endTag := "end" + strings.TrimPrefix(elementType, "begin")
 		*rows = append(*rows, map[string]string{"type": endTag})
 	}
 	return nil
@@ -167,20 +204,11 @@ func fieldsToRow(val *cue.Value, keys map[string]struct{}) (map[string]string, e
 			continue
 		}
 		if IsTranslatableColumn(key) {
-			langsIter, err := elIter.Value().Fields()
-			if err != nil {
+			if err := addTranslations(result, keys, key, elIter.Value()); err != nil {
 				return nil, err
 			}
-			for langsIter.Next() {
-				labelHeader := fmt.Sprintf("%s::%s", key, langsIter.Label())
-				result[labelHeader], err = langsIter.Value().String()
-				if err != nil {
-					return nil, err
-				}
-				keys[labelHeader] = struct{}{}
-			}
 		} else {
-			keyVal, err := elIter.Value().String()
+			keyVal, err := scalarToCell(elIter.Value())
 			if err != nil {
 				return nil, err
 			}
@@ -200,45 +228,78 @@ func fieldsToRow(val *cue.Value, keys map[string]struct{}) (map[string]string, e
 	return result, nil
 }
 
+// addTranslations decodes a translatable value ({lang: text}) into one "col::lang" cell per language
+func addTranslations(row map[string]string, keys map[string]struct{}, col string, val cue.Value) error {
+	var translations map[string]string
+	if err := val.Decode(&translations); err != nil {
+		return fmt.Errorf("%s: %s", val.Path(), errors.Details(err, nil))
+	}
+	for lang, text := range translations {
+		header := fmt.Sprintf("%s::%s", col, lang)
+		row[header] = text
+		keys[header] = struct{}{}
+	}
+	return nil
+}
+
+// scalarToCell formats a concrete string, bool or number as an XLSForm cell
+func scalarToCell(val cue.Value) (string, error) {
+	switch val.Kind() {
+	case cue.StringKind:
+		return val.String()
+	case cue.BoolKind:
+		b, err := val.Bool()
+		if err != nil {
+			return "", err
+		}
+		if b {
+			return "yes", nil
+		}
+		return "no", nil
+	case cue.IntKind:
+		i, err := val.Int64()
+		if err != nil {
+			return "", err
+		}
+		return strconv.FormatInt(i, 10), nil
+	case cue.FloatKind:
+		f, err := val.Float64()
+		if err != nil {
+			return "", err
+		}
+		return strconv.FormatFloat(f, 'f', -1, 64), nil
+	default:
+		return "", fmt.Errorf("%s: cannot write a %s as an xlsform cell", val.Path(), val.Kind())
+	}
+}
+
 func choiceStructToRows(val *cue.Value, keys map[string]struct{}) ([]map[string]string, error) {
-	el := val.Value()
-	listName, err := el.LookupPath(cue.ParsePath("list_name")).String()
+	listName, err := val.LookupPath(cue.ParsePath("list_name")).String()
 	if err != nil {
 		return nil, err
 	}
-	choicesIter, err := el.LookupPath(cue.ParsePath("choices")).List()
+	choicesIter, err := val.LookupPath(cue.ParsePath("choices")).List()
 	if err != nil {
 		return nil, err
 	}
 
 	elements := []map[string]string{}
 	for choicesIter.Next() {
+		// iterated rather than decoded so choices keep their source order
 		choiceIter, err := choicesIter.Value().Fields()
 		if err != nil {
 			return nil, err
 		}
 		for choiceIter.Next() {
 			key := choiceIter.Label()
-			element := map[string]string{}
-			element["list_name"] = listName
+			if key == "filterCategory" {
+				continue
+			}
+			element := map[string]string{"list_name": listName, "name": key}
 			keys["list_name"] = struct{}{}
-			switch key {
-			case "filterCategory":
-			default:
-				element["name"] = key
-				keys["name"] = struct{}{}
-				choiceStructIter, err := choiceIter.Value().Fields()
-				if err != nil {
-					return nil, err
-				}
-				for choiceStructIter.Next() {
-					labelKey := fmt.Sprintf("label::%s", choiceStructIter.Label())
-					element[labelKey], err = choiceStructIter.Value().String()
-					if err != nil {
-						return nil, err
-					}
-					keys[labelKey] = struct{}{}
-				}
+			keys["name"] = struct{}{}
+			if err := addTranslations(element, keys, "label", choiceIter.Value()); err != nil {
+				return nil, err
 			}
 			elements = append(elements, element)
 		}

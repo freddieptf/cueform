@@ -1,25 +1,38 @@
 package xlsform
 
+import "list"
+
 #Translatable: [string]: string
-#QuestionType: "select_one" | "select_multiple" | "select_one_from_file" | "select_multiple_from_file" | "select_one_external" |
-	"rank" | "text" | "integer" | "decimal" | "date" | "time" | "dateTime" | "geopoint" | "image" | "audio" | "background-audio" | "video" | "file" | "note" |
-	"barcode" | "acknowledge" | "calculate" | "geotrace" | "geoshape"
+
+// Question types shown to the person filling in the form; they need a label.
+#LabelledQuestionType: "select_one" | "select_multiple" | "select_one_from_file" | "select_multiple_from_file" | "select_one_external" |
+	"rank" | "text" | "integer" | "decimal" | "range" | "date" | "time" | "dateTime" | "geopoint" | "image" | "audio" | "video" | "file" | "note" |
+	"barcode" | "acknowledge" | "geotrace" | "geoshape"
+
+// Question types that are never displayed, so a label is optional.
+#UnlabelledQuestionTypes: ["calculate", "hidden", "background-audio", "xml-external", "csv-external",
+	"start", "end", "today", "deviceid", "phonenumber", "username", "email", "audit", "start-geopoint", "subscriberid", "simserial"]
+
+#QuestionType: #LabelledQuestionType | or(#UnlabelledQuestionTypes)
 
 #Question: {
 	type:                #QuestionType
 	name:                string
-	label:               #Translatable
+	label?:              #Translatable
 	constraint?:         string
 	constraint_message?: #Translatable
 	hint?:               #Translatable
-	required?:           string
+	required?:           string | bool
 	required_message?:   #Translatable
 	relevant?:           string
 	choices?:            #Choices
 	choice_filter?:      string
-	read_only?:          string
+	read_only?:          string | bool
 	calculation?:        string
 	appearance?:         string
+	if !list.Contains(#UnlabelledQuestionTypes, type) {
+		label!: #Translatable
+	}
 	...
 }
 
