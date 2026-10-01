@@ -173,6 +173,29 @@ func TestBuildSurveyElement(t *testing.T) {
 }`,
 		},
 		{
+			// pyxform accepts three spellings of or_other
+			colHeaders: []string{"type", "name", "label::lang (en)"},
+			row:        []string{"select_one yes_no or specify other", "test", "test"},
+			want: `{
+	type:     "select_one"
+	choices:  yes_no
+	or_other: true
+	name:     "test"
+	label: "lang (en)": "test"
+}`,
+		},
+		{
+			colHeaders: []string{"type", "name", "label::lang (en)"},
+			row:        []string{"select_multiple yes_no or_other", "test", "test"},
+			want: `{
+	type:     "select_multiple"
+	choices:  yes_no
+	or_other: true
+	name:     "test"
+	label: "lang (en)": "test"
+}`,
+		},
+		{
 			// rank takes a choice list like the select types
 			colHeaders: []string{"type", "name", "label::lang (en)"},
 			row:        []string{"rank yes_no", "test", "test"},
