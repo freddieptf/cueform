@@ -228,6 +228,18 @@ func TestBuildSurveyElement(t *testing.T) {
 }`,
 		},
 		{
+			// a _from_file select names an attached file rather than a choice list
+			colHeaders: []string{"type", "name", "label", "parameters"},
+			row:        []string{"select_one_from_file cities.csv", "test", "City", "value=id"},
+			want: `{
+	type:       "select_one_from_file"
+	file:       "cities.csv"
+	name:       "test"
+	label:      "City"
+	parameters: "value=id"
+}`,
+		},
+		{
 			// rank takes a choice list like the select types
 			colHeaders: []string{"type", "name", "label::lang (en)"},
 			row:        []string{"rank yes_no", "test", "test"},

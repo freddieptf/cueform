@@ -340,6 +340,15 @@ against `#Question`.
 - If `type` starts with `select_` or is `rank`, the encoder writes the
   type column as `"<type> <choices.list_name>"`, for example
   `select_one ages` or `rank ages`.
+- `select_one_from_file` and `select_multiple_from_file` read their
+  choices from a file attached to the form, not from the choices sheet.
+  The file is named in `file` and written after the type:
+  `{type: "select_one_from_file", file: "cities.csv"}` becomes
+  `select_one_from_file cities.csv`. The schema requires `file` on these
+  types, and it must end in `.csv`, `.xml` or `.geojson`. They can't
+  have `choices`, and other types can't have `file`. `choice_filter`
+  and `parameters` (such as `value=id label=full_name`) are written as
+  usual.
 - `or_other` isn't supported. pyxform adds its "other" choice to the
   shared list, so every question using the list shows it. Add an
   "other" choice and a text question with `relevant`, as the XLSForm spec
@@ -464,7 +473,9 @@ the entry's `filterCategory`, as in
 - Every other row becomes `pkg.#Question & {...}`.
 - A type of `select_<x> <list>` or `rank <list>` is split into
   `type: "select_<x>"` (or `"rank"`) and a `choices` field that holds the
-  decoded `<list>` from the choices sheet. A list the choices sheet
+  decoded `<list>` from the choices sheet.
+  `select_one_from_file <file>` and `select_multiple_from_file <file>`
+  become `type` and `file: "<file>"`. A list the choices sheet
   doesn't have fails with `ErrInvalidXLSForm`. A suffix after the list
   name, such as `or_other`, fails with `ErrOrOther`.
 - A translatable header `col::lang` becomes a struct

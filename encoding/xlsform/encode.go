@@ -162,9 +162,38 @@ func isGroupType(elementType string) bool {
 	return strings.HasPrefix(elementType, "begin_") || strings.HasPrefix(elementType, "begin ")
 }
 
-// usesChoices reports whether a question type takes a choice list, written as "<type> <list_name>"
+// usesChoices reports whether a question type takes a list from the choices sheet, written as
+// "<type> <list_name>"
 func usesChoices(elementType string) bool {
-	return strings.HasPrefix(elementType, "select_") || elementType == "rank"
+	return (strings.HasPrefix(elementType, "select_") && !isFromFile(elementType)) || elementType == "rank"
+}
+
+// isFromFile reports whether a question type takes its choices from a form attachment, written as
+// "<type> <file>"
+func isFromFile(elementType string) bool {
+	return strings.HasPrefix(elementType, "select_") && strings.HasSuffix(elementType, "_from_file")
+}
+
+// choiceSource returns what follows the type in the type column: the choice list's name, or the
+// attached file a _from_file select reads its choices from
+func choiceSource(val *cue.Value, elementType string) (string, error) {
+	choices := val.LookupPath(cue.ParsePath("choices"))
+	file := val.LookupPath(cue.ParsePath("file"))
+	switch {
+	case isFromFile(elementType):
+		if choices.Exists() {
+			return "", fmt.Errorf("%s: %s reads its choices from file, so it can't have choices", val.Path(), elementType)
+		}
+		return file.String()
+	case usesChoices(elementType):
+		if file.Exists() {
+			return "", fmt.Errorf("%s: file is only for select_one_from_file and select_multiple_from_file", file.Path())
+		}
+		return choices.LookupPath(cue.ParsePath("list_name")).String()
+	case file.Exists():
+		return "", fmt.Errorf("%s: file is only for select_one_from_file and select_multiple_from_file", file.Path())
+	}
+	return "", nil
 }
 
 // siblings holds the names used so far in the element's group, repeat or survey; pyxform
@@ -206,6 +235,13 @@ func (e *encodeState) elementToRows(val *cue.Value, rows *[]map[string]string, c
 	row, err := fieldsToRow(val, e.surveyColHeaders)
 	if err != nil {
 		return err
+	}
+	source, err := choiceSource(val, elementType)
+	if err != nil {
+		return err
+	}
+	if source != "" {
+		row["type"] += " " + source
 	}
 	*rows = append(*rows, row)
 
@@ -257,7 +293,8 @@ func fieldsToRow(val *cue.Value, keys map[string]struct{}) (map[string]string, e
 	result := map[string]string{}
 	for elIter.Next() {
 		key := elIter.Label()
-		if key == "children" || key == "choices" {
+		// the choice source is part of the type column, which elementToRows writes
+		if key == "children" || key == "choices" || key == "file" {
 			continue
 		}
 		if key == "or_other" {
@@ -273,16 +310,7 @@ func fieldsToRow(val *cue.Value, keys map[string]struct{}) (map[string]string, e
 			if err != nil {
 				return nil, err
 			}
-			if key == "type" && usesChoices(keyVal) {
-				choiceStruct := val.LookupPath(cue.ParsePath("choices"))
-				listName, err := choiceStruct.LookupPath(cue.ParsePath("list_name")).String()
-				if err != nil {
-					return nil, err
-				}
-				result[key] = fmt.Sprintf("%s %s", keyVal, listName)
-			} else {
-				result[key] = keyVal
-			}
+			result[key] = keyVal
 			keys[key] = struct{}{}
 		}
 	}

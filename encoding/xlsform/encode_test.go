@@ -232,6 +232,28 @@ func TestEncode(t *testing.T) {
 			file: "testdata/form_empty_choices.cue",
 			err:  "smokes does not match the schema: #Question.choices.choices: incompatible list lengths (0 and 1)",
 		}, {
+			// _from_file selects name their attached file in the type column
+			file: "testdata/form_from_file.cue",
+			form: &xlsForm{
+				surveyColumnHeaders: []string{"type", "name", "label", "choice_filter", "parameters"},
+				survey: [][]string{
+					{"select_one_from_file cities.csv", "city", "City"},
+					{"select_multiple_from_file people.xml", "person", "People", "district=${city}", "value=id label=full_name"},
+				},
+			},
+		}, {
+			file: "testdata/form_from_file_no_file.cue",
+			err:  "city does not match the schema: #Question.file: field is required but not present",
+		}, {
+			file: "testdata/form_from_file_with_choices.cue",
+			err:  "city: select_one_from_file reads its choices from file, so it can't have choices",
+		}, {
+			file: "testdata/form_file_on_select.cue",
+			err:  "city.file: file is only for select_one_from_file and select_multiple_from_file",
+		}, {
+			file: "testdata/form_from_file_bad_extension.cue",
+			err:  "city does not match the schema: #Question.file: invalid value",
+		}, {
 			file: "testdata/form_or_other.cue",
 			err:  "favourite.or_other: or_other is not supported",
 		}, {

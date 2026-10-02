@@ -333,10 +333,14 @@ func buildSurveyElement(nl bool, columnHeaders []string, row []string, choiceMap
 			continue
 		}
 		qtype, choice, hasList := strings.Cut(row[idx], " ")
-		if header == "type" && hasList && usesChoices(qtype) {
+		if header == "type" && hasList && (usesChoices(qtype) || isFromFile(qtype)) {
 			list, suffix, _ := strings.Cut(strings.TrimSpace(choice), " ")
 			if suffix != "" {
 				return nil, fmt.Errorf("%w: type %q", ErrOrOther, row[idx])
+			}
+			if isFromFile(qtype) {
+				element.Elts = append(element.Elts, &ast.Field{Label: ast.NewIdent(header), Value: ast.NewString(qtype)}, &ast.Field{Label: ast.NewIdent("file"), Value: ast.NewString(list)})
+				continue
 			}
 			choices, ok := choiceMap[list]
 			if !ok {

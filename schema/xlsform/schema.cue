@@ -34,6 +34,8 @@ import "list"
 	required_message?:   #Text
 	relevant?:           string
 	choices?:            #Choices
+	// the attached CSV, XML or GeoJSON file a _from_file select reads its choices from
+	file?: =~"\\.(csv|xml|geojson)$"
 	choice_filter?:      string
 	read_only?:          string | bool
 	calculation?:        string
@@ -43,6 +45,9 @@ import "list"
 	}
 	if list.Contains(["select_one", "select_multiple", "rank"], type) {
 		choices!: #Choices
+	}
+	if list.Contains(["select_one_from_file", "select_multiple_from_file"], type) {
+		file!: _
 	}
 	...
 }
