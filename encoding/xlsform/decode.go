@@ -172,35 +172,23 @@ func validXLSFormSheet(sheet string, rows [][]string) error {
 		log.Printf("%s is empty", sheet)
 		return ErrInvalidXLSForm
 	}
-	columnHeaders := rows[0]
-	if sheet == surveySheetName {
-		for _, requiredCol := range requiredSurveySheetColumns {
-			match := slices.ContainsFunc(columnHeaders, func(s string) bool {
-				_, found := strings.CutPrefix(s, requiredCol)
-				if !found {
-					log.Println("no match", s, requiredCol)
-				}
-				return found
-			})
-			if !match {
-				return ErrInvalidXLSFormSheet
-			}
-		}
-	} else if sheet == choiceSheetName {
-		for _, requiredCol := range requiredChoiceSheetColumns {
-			match := slices.ContainsFunc(columnHeaders, func(s string) bool {
-				_, found := strings.CutPrefix(s, requiredCol)
-				if !found {
-					log.Println("no match", s, requiredCol)
-				}
-				return found
-			})
-			if !match {
-				return ErrInvalidXLSFormSheet
-			}
+	required := map[string][]string{surveySheetName: requiredSurveySheetColumns, choiceSheetName: requiredChoiceSheetColumns}[sheet]
+	for _, col := range required {
+		if !slices.ContainsFunc(rows[0], func(header string) bool { return isColumn(header, col) }) {
+			return fmt.Errorf("%w: the %s sheet has no %s column", ErrInvalidXLSFormSheet, sheet, col)
 		}
 	}
 	return nil
+}
+
+// isColumn reports whether a header is the column col; a translatable column also counts with a
+// ::lang suffix, as a translated form may have only label::en
+func isColumn(header, col string) bool {
+	if header == col {
+		return true
+	}
+	base, _, translated := strings.Cut(header, "::")
+	return translated && base == col && IsTranslatableColumn(col)
 }
 
 func (form *xlsForm) toAstFile(i *ast.ImportSpec) (*ast.File, error) {

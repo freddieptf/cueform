@@ -381,3 +381,30 @@ form_settings:
 		})
 	}
 }
+
+func TestValidXLSFormSheetColumns(t *testing.T) {
+	for _, tc := range []struct {
+		sheet   string
+		headers []string
+		missing string
+	}{
+		{surveySheetName, []string{"type", "name", "label"}, ""},
+		// a translated form may have only label::lang columns
+		{surveySheetName, []string{"type", "name", "label::en", "label::fr"}, ""},
+		// a column that only starts with a required name isn't that column
+		{surveySheetName, []string{"type", "name_foo", "label"}, "name"},
+		{surveySheetName, []string{"types", "name", "label"}, "type"},
+		{choiceSheetName, []string{"list_name", "name", "label_x"}, "label"},
+	} {
+		err := validXLSFormSheet(tc.sheet, [][]string{tc.headers})
+		if tc.missing == "" {
+			if err != nil {
+				t.Errorf("%q: have %v, want no error", tc.headers, err)
+			}
+			continue
+		}
+		if !errors.Is(err, ErrInvalidXLSFormSheet) || !strings.Contains(err.Error(), "has no "+tc.missing+" column") {
+			t.Errorf("%q: have %v, want a missing %s column", tc.headers, err, tc.missing)
+		}
+	}
+}

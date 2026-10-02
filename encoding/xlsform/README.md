@@ -484,9 +484,11 @@ as `relevant` and `relevance`, fail with `ErrInvalidXLSFormSheet`. In the
 
 **Sheet validation.**
 
-- The `survey` sheet is required. Its header row must contain columns
-  that start with `type`, `name` and `label`, so `label::en` counts as
-  `label`.
+- The `survey` sheet is required. Its header row must have `type`,
+  `name` and `label` columns. `label::en` counts as `label`, but a column
+  that merely starts with a required name, such as `name_foo`, doesn't.
+  A missing column fails with `ErrInvalidXLSFormSheet` naming it:
+  `the survey sheet has no name column`.
 - The `choices` sheet is optional. If it exists, it must contain
   `list_name`, `name` and `label` columns, matched the same way.
 - The `settings` sheet is optional. If it exists, it must not be empty.
@@ -580,5 +582,3 @@ These describe current behavior. Most are bugs or gaps.
   Go map. That doesn't change the output, because each list is
   attached to the question that uses it, but it matters if you add code
   that emits the lists on their own.
-- **Prefix matching.** The decoder's required-column check matches by
-  prefix, so `name_foo` satisfies the required `name` column.
