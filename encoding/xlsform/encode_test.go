@@ -1,10 +1,13 @@
 package xlsform
 
 import (
+	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
 
+	"github.com/freddieptf/cueform/schema"
 	"github.com/xuri/excelize/v2"
 )
 
@@ -109,20 +112,6 @@ func TestEncode(t *testing.T) {
 				settingColumnHeaders: []string{"form_title", "form_id", "default_language", "version"},
 				settings: [][]string{
 					{"test", "test_id", "English (en)", "2"},
-				},
-			},
-		}, {
-			// imports resolve from the form's own cue.mod, not the working directory
-			file: "../../examples/composition/person_registration.cue",
-			form: &xlsForm{
-				surveyColumnHeaders: []string{"type", "name", "label::en", "required", "appearance"},
-				survey: [][]string{
-					{"begin group", "person_registration", "Person Registration", "", "field-list"},
-					{"text", "first_name", "First Name", "yes"},
-					{"text", "middle_name", "Middle Name"},
-					{"text", "last_name", "Last Name"},
-					{"integer", "age", "Age"},
-					{"end group"},
 				},
 			},
 		}, {
@@ -352,5 +341,65 @@ func TestEncode(t *testing.T) {
 				t.Fatalf("have\n%+v\nbut want\n%+v", form, tc.form)
 			}
 		})
+	}
+}
+
+// imports resolve from the form's own cue.mod, not the working directory. The module is built in a
+// temporary directory with the schema vendored from the binary, so the test needs no registry.
+func TestEncodeResolvesImportsFromFormModule(t *testing.T) {
+	dir := t.TempDir()
+	files := map[string]string{
+		"cue.mod/module.cue": "module: \"example.com/forms\"\nlanguage: version: \"v0.16.0\"\n",
+		"cue.mod/pkg/github.com/freddieptf/cueform/xlsform/schema.cue": string(schema.XLSForm),
+		"registration/questions.cue": `package registration
+
+import "github.com/freddieptf/cueform/xlsform"
+
+questions: [
+	xlsform.#Question & {type: "text", name: "first_name", label: "First name", required: "yes"},
+	xlsform.#Question & {type: "integer", name: "age", label: "Age"},
+]
+`,
+		"forms/person.cue": `package forms
+
+import (
+	"example.com/forms/registration"
+	"github.com/freddieptf/cueform/xlsform"
+)
+
+person: xlsform.#Group & {
+	type:     "begin group"
+	name:     "person"
+	label:    "Person"
+	children: registration.questions
+}
+`,
+	}
+	for name, content := range files {
+		path := filepath.Join(dir, name)
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// the test runs in encoding/xlsform, outside the module
+	buf, err := NewEncoder().Encode(filepath.Join(dir, "forms/person.cue"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	form, err := parseXLSForm(buf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := [][]string{
+		{"begin group", "person", "Person"},
+		{"text", "first_name", "First name", "yes"},
+		{"integer", "age", "Age"},
+		{"end group"},
+	}
+	if !reflect.DeepEqual(form.survey, want) {
+		t.Fatalf("have %q, want %q", form.survey, want)
 	}
 }
