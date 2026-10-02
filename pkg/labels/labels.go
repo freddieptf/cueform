@@ -216,12 +216,17 @@ func (e *extractor) extractLabels(defaultLang string, node *ast.BinaryExpr) erro
 						if key == "filterCategory" {
 							continue
 						}
-						var labelStruct *ast.StructLit
-						switch v := c.(*ast.Field).Value.(type) {
-						case *ast.StructLit:
-							labelStruct = v
-						default:
+						target := c.(*ast.Field)
+						labelStruct, ok := target.Value.(*ast.StructLit)
+						if !ok {
 							continue
+						}
+						// a choice with media is {label: ..., image: ...}; only its label is yanked
+						if details := choiceLabelField(labelStruct); details != nil {
+							target = details
+							if labelStruct, ok = details.Value.(*ast.StructLit); !ok {
+								continue
+							}
 						}
 						for _, l := range labelStruct.Elts {
 							label, err := getLabelFromField(l.(*ast.Field))
@@ -239,7 +244,7 @@ func (e *extractor) extractLabels(defaultLang string, node *ast.BinaryExpr) erro
 							e.trackUniq[defaultText] = labels.id
 							e.elements = append(e.elements, labels)
 						}
-						c.(*ast.Field).Value = &ast.SelectorExpr{X: ast.NewIdent("_labels"), Sel: ast.NewString(e.trackUniq[defaultText])}
+						target.Value = &ast.SelectorExpr{X: ast.NewIdent("_labels"), Sel: ast.NewString(e.trackUniq[defaultText])}
 					}
 				}
 			}
@@ -250,6 +255,18 @@ func (e *extractor) extractLabels(defaultLang string, node *ast.BinaryExpr) erro
 				if err != nil {
 					return err
 				}
+			}
+		}
+	}
+	return nil
+}
+
+// choiceLabelField returns the label field of a {label: ..., image: ...} choice, or nil
+func choiceLabelField(choice *ast.StructLit) *ast.Field {
+	for _, el := range choice.Elts {
+		if f, ok := el.(*ast.Field); ok {
+			if name, _, _ := ast.LabelName(f.Label); name == "label" {
+				return f
 			}
 		}
 	}

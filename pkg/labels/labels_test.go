@@ -114,3 +114,17 @@ func TestExtractLabels(t *testing.T) {
 		})
 	}
 }
+
+// a choice with media is {label: ..., image: ...}; only its label is yanked
+func TestExtractLabelsChoiceMedia(t *testing.T) {
+	result, err := ExtractLabels("testdata/media/form.cue")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := `{apple: {label: _labels."fruit/apple", image: "apple.png"}}`; !strings.Contains(string(result.Form), want) {
+		t.Errorf("form: want %s in\n%s", want, result.Form)
+	}
+	if want := `"fruit/apple": {`; !strings.Contains(string(result.Labels), want) {
+		t.Errorf("labels: want %s in\n%s", want, result.Labels)
+	}
+}
