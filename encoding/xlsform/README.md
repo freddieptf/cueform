@@ -195,9 +195,16 @@ func NewDecoder(pkg string) *Decoder
 ```
 
 NewDecoder returns a Decoder that imports the schema package at import
-path pkg, for example `"github.com/freddieptf/cueform/xlsform"`. The
-identifier used in the generated code is the last element of the path,
-`xlsform` in that example.
+path pkg, usually `SchemaPackage`. The identifier used in the generated
+code is the last element of the path, `xlsform` for `SchemaPackage`.
+
+```go
+const SchemaPackage = "github.com/freddieptf/cueform/xlsform"
+```
+
+SchemaPackage is the import path of cueform's schema package, published
+to the CUE Central Registry in the `github.com/freddieptf/cueform@v0`
+module. `cueform decode` uses it unless `-pkg` says otherwise.
 
 ### func (*Decoder) UsePkg
 

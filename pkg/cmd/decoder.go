@@ -22,7 +22,7 @@ type decoderCmd struct {
 func newDecoderCmd() *decoderCmd {
 	flagSet := flag.NewFlagSet("decoder", flag.ExitOnError)
 	outPutDir := flagSet.String("out", "", "output directory, defaults to current dir")
-	pkg := flagSet.String("pkg", "", `package that has the schema definitions`)
+	pkg := flagSet.String("pkg", xlsform.SchemaPackage, `import path of the package with the schema definitions`)
 	return &decoderCmd{
 		flag: flagSet,
 		out:  outPutDir,

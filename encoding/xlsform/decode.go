@@ -45,6 +45,10 @@ var (
 	}
 )
 
+// SchemaPackage is the import path of cueform's schema package, published to the CUE Central
+// Registry as part of the github.com/freddieptf/cueform@v0 module
+const SchemaPackage = "github.com/freddieptf/cueform/xlsform"
+
 type Decoder struct {
 	schemaPkg string
 }
