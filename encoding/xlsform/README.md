@@ -537,6 +537,10 @@ decodes as `{nairobi: {label: ..., image: ...}}`. pyxform's older
 
 - Empty rows are skipped. So are empty cells, which means a column with
   no value in a row produces no field for that row.
+- Names must be unique within their group, repeat or survey, as in
+  pyxform; a duplicate fails with `ErrInvalidXLSForm` naming both rows:
+  `survey row 5: name "age" is already used in row 2`. At the top level
+  the name `form_settings` is also taken when there's a settings sheet.
 - Every other row needs a `type`, and every row except a group's closing
   `end` row needs a `name`, as in pyxform. Otherwise decoding fails with
   `ErrInvalidXLSForm` naming the sheet row:
@@ -586,7 +590,8 @@ are left out. The exception is the yes/no flags pyxform reads with its
 `omit_instanceID`, `client_editable`, `add_none_option`). Their yes/no
 spellings, plus `true()` and `false()`, decode as CUE bools.
 `auto_send` and `auto_delete` stay strings: pyxform copies them into the
-XForm as written, so the schema requires the text `"true"` or `"false"`. As in pyxform, only the first non-empty settings row is used; any
+XForm as written, so the schema requires the text `"true"` or `"false"`.
+As in pyxform, only the first non-empty settings row is used; any
 later rows are ignored with a warning naming them. A settings sheet with
 no data rows gives no `form_settings`.
 

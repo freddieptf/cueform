@@ -381,6 +381,9 @@ type openGroup struct {
 func (form *xlsForm) surveyToAst(importInfo astutil.ImportInfo, n *ast.StructLit, idx int, choiceMap map[string]ast.Expr, open *openGroup) (int, error) {
 	elList := &ast.ListLit{Rbrack: token.Newline.Pos()}
 	n.Elts = append(n.Elts, &ast.Field{Label: ast.NewIdent("children"), Value: elList})
+	// names must be unique within their group, repeat or survey, as pyxform requires; at the top
+	// level each name is also a CUE field, so a duplicate would merge two questions
+	names := map[string]int{}
 	for {
 		if idx > len(form.survey)-1 {
 			if open != nil {
@@ -415,6 +418,13 @@ func (form *xlsForm) surveyToAst(importInfo astutil.ImportInfo, n *ast.StructLit
 		name := form.surveyCell(row, "name")
 		if name == "" {
 			return idx, fmt.Errorf("%w: survey row %d (%s) has no name", ErrInvalidXLSForm, rowNumber, elementType)
+		}
+		if first, ok := names[name]; ok {
+			return idx, fmt.Errorf("%w: survey row %d: name %q is already used in row %d; names must be unique within their group, repeat or survey", ErrInvalidXLSForm, rowNumber, name, first)
+		}
+		names[name] = rowNumber
+		if open == nil && name == "form_settings" && len(form.settings) > 0 {
+			return idx, fmt.Errorf("%w: survey row %d: the name %q is taken by the settings sheet", ErrInvalidXLSForm, rowNumber, name)
 		}
 		if groupRow != nil {
 			group, err := buildSurveyElement(true, form.surveyColumnHeaders, row, choiceMap)

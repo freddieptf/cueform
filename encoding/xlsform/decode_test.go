@@ -647,3 +647,49 @@ func TestDecodeSettingsRows(t *testing.T) {
 		t.Error("a settings sheet with no data rows should give no form_settings")
 	}
 }
+
+// names must be unique within their group, repeat or survey; top-level names are CUE fields
+func TestDecodeDuplicateNames(t *testing.T) {
+	decode := func(survey [][]string, withSettings bool) error {
+		f := excelize.NewFile()
+		f.SetSheetName("Sheet1", "survey")
+		f.SetSheetRow("survey", "A1", &[]string{"type", "name", "label"})
+		for i, row := range survey {
+			f.SetSheetRow("survey", fmt.Sprintf("A%d", i+2), &row)
+		}
+		if withSettings {
+			f.NewSheet("settings")
+			f.SetSheetRow("settings", "A1", &[]string{"form_title"})
+			f.SetSheetRow("settings", "A2", &[]string{"T"})
+		}
+		buf, err := f.WriteToBuffer()
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = NewDecoder("x").Decode(buf)
+		return err
+	}
+
+	// the same name in different groups is fine
+	if err := decode([][]string{{"text", "age", "Age"}, {"begin_group", "father", "Father"}, {"integer", "age", "Age"}, {"end_group"}}, false); err != nil {
+		t.Errorf("same name in different groups: %v", err)
+	}
+	for _, tc := range []struct {
+		name         string
+		survey       [][]string
+		withSettings bool
+		want         string
+	}{
+		{"top level", [][]string{{"text", "age", "Age"}, {"note", "n", "N"}, {"integer", "age", "Age again"}}, false, `survey row 4: name "age" is already used in row 2`},
+		{"in a group", [][]string{{"begin_group", "g", "G"}, {"text", "a", "A"}, {"text", "a", "A"}, {"end_group"}}, false, `survey row 4: name "a" is already used in row 3`},
+		{"form_settings", [][]string{{"text", "form_settings", "Q"}}, true, `the name "form_settings" is taken by the settings sheet`},
+	} {
+		if err := decode(tc.survey, tc.withSettings); !errors.Is(err, ErrInvalidXLSForm) || !strings.Contains(err.Error(), tc.want) {
+			t.Errorf("%s: have %v, want %q", tc.name, err, tc.want)
+		}
+	}
+	// without a settings sheet, form_settings is an ordinary name
+	if err := decode([][]string{{"text", "form_settings", "Q"}}, false); err != nil {
+		t.Errorf("form_settings without settings: %v", err)
+	}
+}
