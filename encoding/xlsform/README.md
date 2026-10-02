@@ -520,7 +520,9 @@ as `relevant` and `relevance`, fail with `ErrInvalidXLSFormSheet`. In the
   A missing required column returns `ErrInvalidXLSFormSheet`. If an
   optional sheet is missing, the decoder logs that and keeps going.
 
-**Choices.** Rows are grouped by `list_name`. Each row becomes
+**Choices.** Rows are grouped by `list_name`, keeping the order the
+lists and their choices appear in. A row with no `list_name` is
+skipped, as pyxform skips it, with a warning naming the row. Each row becomes
 `{<name>: {<lang>: <label>}}` in that list's `choices`, or
 `{<name>: <label>}` when the sheet has a single plain `label` column.
 The list is wrapped as `pkg.#Choices & {...}`. Other columns with a
@@ -608,7 +610,3 @@ These describe current behavior. Most are bugs or gaps.
 - **Unusual numbers differ from pyxform.** Numbers below 0.0001 decode
   as `0.00001`, where pyxform writes `1e-05`, and integers beyond 2^53
   lose digits.
-- **Choice-list order is not fixed.** Choice lists are built from a
-  Go map. That doesn't change the output, because each list is
-  attached to the question that uses it, but it matters if you add code
-  that emits the lists on their own.

@@ -593,3 +593,32 @@ func TestDecodeSettingFlags(t *testing.T) {
 		}
 	}
 }
+
+// lists keep the order they first appear in; a row with no list_name is skipped, as pyxform does
+func TestExtractChoices(t *testing.T) {
+	var logs bytes.Buffer
+	log.SetOutput(&logs)
+	t.Cleanup(func() { log.SetOutput(os.Stderr) })
+
+	columns := []string{"name", "label", "list_name"}
+	rows := [][]string{
+		{"yes", "Yes", "yes_no"},
+		{"apple", "Apple", "fruit"},
+		{"mango", "Mango"},
+		{"no", "No", "yes_no"},
+		{},
+		{"zebra", "Zebra", "animals"},
+	}
+	var have []string
+	for _, list := range extractChoices(columns, rows) {
+		for _, row := range list.rows {
+			have = append(have, list.name+"/"+row[0])
+		}
+	}
+	if want := []string{"yes_no/yes", "yes_no/no", "fruit/apple", "animals/zebra"}; !reflect.DeepEqual(have, want) {
+		t.Errorf("have %q, want %q", have, want)
+	}
+	if !strings.Contains(logs.String(), "choices row 4 is dropped: it has no list_name") {
+		t.Errorf("no warning for the row without a list_name in %q", logs.String())
+	}
+}

@@ -265,33 +265,46 @@ func (form *xlsForm) choicesToAst(importInfo astutil.ImportInfo) (map[string]ast
 		return nil, nil
 	}
 	choiceAsts := make(map[string]ast.Expr)
-	for choiceKey, rows := range extractChoices(form.choiceColumnHeaders, form.choices) {
-		choiceStruct, err := buildChoiceStruct(choiceKey, form.choiceColumnHeaders, rows)
+	for _, list := range extractChoices(form.choiceColumnHeaders, form.choices) {
+		choiceStruct, err := buildChoiceStruct(list.name, form.choiceColumnHeaders, list.rows)
 		if err != nil {
 			return nil, err
 		}
-		choiceAsts[choiceKey] = newConjuctionOnNewLine(importInfo, "Choices", choiceStruct, false)
+		choiceAsts[list.name] = newConjuctionOnNewLine(importInfo, "Choices", choiceStruct, false)
 	}
 	return choiceAsts, nil
 }
 
-// extractChoices transform the choice sheet rows to a map with the key being the choice list_name and
-// the value being an array of all rows specific to the choice with the list_name
-func extractChoices(columns []string, rows [][]string) map[string][][]string {
+type choiceRows struct {
+	name string
+	rows [][]string
+}
+
+// extractChoices groups the choice sheet rows by list_name, in the order the lists first appear
+func extractChoices(columns []string, rows [][]string) []choiceRows {
 	listNameIdx := slices.Index(columns, "list_name")
-	choices := make(map[string][][]string)
-	for _, row := range rows {
-		if len(row) == 0 {
+	lists := []choiceRows{}
+	index := map[string]int{}
+	for i, row := range rows {
+		if !slices.ContainsFunc(row, func(c string) bool { return c != "" }) {
 			continue
 		}
-		choice := choices[row[listNameIdx]]
-		if choice == nil {
-			choice = [][]string{}
+		listName := ""
+		if listNameIdx < len(row) {
+			listName = row[listNameIdx]
 		}
-		choice = append(choice, row)
-		choices[row[listNameIdx]] = choice
+		if listName == "" {
+			// pyxform skips the row too; the header is sheet row 1
+			log.Printf("warning: choices row %d is dropped: it has no list_name", i+2)
+			continue
+		}
+		if _, ok := index[listName]; !ok {
+			index[listName] = len(lists)
+			lists = append(lists, choiceRows{name: listName})
+		}
+		lists[index[listName]].rows = append(lists[index[listName]].rows, row)
 	}
-	return choices
+	return lists
 }
 
 // buildChoiceStruct builds a CUE struct from rows describing a choice
