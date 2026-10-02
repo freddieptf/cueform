@@ -1,6 +1,7 @@
 package main
 
 #Question: {...}
+#Settings: {...}
 
 photo: #Question & {
 	type: "image"
@@ -12,3 +13,5 @@ photo: #Question & {
 	"big-image": {en: "large_en.png", fr: "large_fr.png"}
 	audio: {en: "prompt_en.mp3", fr: "prompt_fr.mp3"}
 }
+
+form_settings: #Settings & {type: "settings", default_language: "en"}

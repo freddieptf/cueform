@@ -1,6 +1,7 @@
 package main
 
 #Question: {...}
+#Settings: {...}
 #Choices: {...}
 
 fav: #Question & {
@@ -15,3 +16,5 @@ fav: #Question & {
 		]
 	}
 }
+
+form_settings: #Settings & {type: "settings", default_language: "en"}

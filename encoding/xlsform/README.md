@@ -430,6 +430,15 @@ opposite way: it requires the code to be in the IANA registry but
 hardly checks the format, and skips names shorter than three
 characters.
 
+A form with more than one language must set
+`form_settings.default_language`, and when it is set it must be one of
+the form's languages. Otherwise encoding fails:
+`form_settings.default_language is required, because the form has more than one language: English (en), Swahili (sw)`.
+pyxform accepts both cases but then marks no translation as the
+default, so the app picks one. A form with only one language, or with a
+plain column next to translated ones (pyxform's `default` language),
+needs no setting.
+
 **Workbook.** The default `Sheet1` is deleted. Column width is set to 30
 for every column, and to 50 for column C of the survey sheet (usually
 the first label column). Each sheet's dimension is set to the range

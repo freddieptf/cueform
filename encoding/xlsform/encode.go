@@ -148,8 +148,12 @@ func (c *CueForm) toXLSForm() (*xlsForm, error) {
 		form.settings = [][]string{settings}
 	}
 
-	if warning := languageWarning(formLanguages(form.surveyColumnHeaders, form.choiceColumnHeaders)); warning != "" {
+	languages := formLanguages(form.surveyColumnHeaders, form.choiceColumnHeaders)
+	if warning := languageWarning(languages); warning != "" {
 		log.Println(warning)
+	}
+	if err := checkDefaultLanguage(c.Settings, languages); err != nil {
+		return nil, err
 	}
 
 	return form, nil

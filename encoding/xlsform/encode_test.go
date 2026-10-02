@@ -191,6 +191,8 @@ func TestEncode(t *testing.T) {
 				survey: [][]string{
 					{"image", "photo", "Take a photo", "Prenez une photo", "Hold steady", "Restez immobile", "Only for staff", "Pour le personnel", "example.png", "large_en.png", "large_fr.png", "prompt_en.mp3", "prompt_fr.mp3"},
 				},
+				settingColumnHeaders: []string{"default_language"},
+				settings:             [][]string{{"en"}},
 			},
 		}, {
 			// a single-language form uses plain columns, with no ::lang
@@ -288,6 +290,8 @@ func TestEncode(t *testing.T) {
 					{"fruit", "apple", "Apple", "Pomme", "apple.png", "apple_en.mp3", "apple_fr.mp3"},
 					{"fruit", "mango", "Mango", "Mangue"},
 				},
+				settingColumnHeaders: []string{"default_language"},
+				settings:             [][]string{{"en"}},
 			},
 		}, {
 			file: "testdata/form_select_external.cue",

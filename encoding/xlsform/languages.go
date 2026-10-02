@@ -5,6 +5,8 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+
+	"cuelang.org/go/cue"
 )
 
 // The XLSForm spec recommends naming each language with its code, as in label::English (en), so
@@ -50,4 +52,28 @@ func languageWarning(languages []string) string {
 		return ""
 	}
 	return fmt.Sprintf("warning: write each language as its name and code, such as English (en); these aren't: %s. Learn more: https://xlsform.org/en/#multiple-language-support", strings.Join(bad, ", "))
+}
+
+// checkDefaultLanguage requires form_settings.default_language when the form has more than one
+// language, and requires it to be one of them. pyxform marks no translation as the default in
+// either case, so the app picks one. A plain column next to translated ones is pyxform's
+// "default" language, which is the default already.
+func checkDefaultLanguage(settings *cue.Value, languages []string) error {
+	var defaultLanguage string
+	if settings != nil {
+		if v := settings.LookupPath(cue.ParsePath("default_language")); v.Exists() {
+			var err error
+			if defaultLanguage, err = v.String(); err != nil {
+				return fmt.Errorf("%s: %w", v.Path(), err)
+			}
+		}
+	}
+	named := slices.DeleteFunc(slices.Clone(languages), func(l string) bool { return l == "default" })
+	switch {
+	case defaultLanguage == "" && len(named) > 1 && !slices.Contains(languages, "default"):
+		return fmt.Errorf("form_settings.default_language is required, because the form has more than one language: %s", strings.Join(named, ", "))
+	case defaultLanguage != "" && len(named) > 0 && !slices.Contains(languages, defaultLanguage):
+		return fmt.Errorf("form_settings.default_language %q isn't one of the form's languages: %s", defaultLanguage, strings.Join(named, ", "))
+	}
+	return nil
 }

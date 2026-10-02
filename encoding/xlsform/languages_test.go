@@ -60,3 +60,22 @@ func TestEncodeLanguageWarning(t *testing.T) {
 		t.Errorf("unexpected warning %q", logs.String())
 	}
 }
+
+// a form with more than one language needs form_settings.default_language, set to one of them
+func TestEncodeDefaultLanguage(t *testing.T) {
+	for file, want := range map[string]string{
+		"testdata/form_languages_no_default.cue":    "form_settings.default_language is required, because the form has more than one language: English (en), Swahili (sw)",
+		"testdata/form_languages_bad_default.cue":   `form_settings.default_language "French (fr)" isn't one of the form's languages: English (en), Swahili (sw)`,
+		"testdata/form_languages_plain_default.cue": "",
+		"testdata/form_languages_one.cue":           "",
+		"testdata/form_media.cue":                   "",
+	} {
+		_, err := NewEncoder().Encode(file)
+		switch {
+		case want == "" && err != nil:
+			t.Errorf("%s: %v", file, err)
+		case want != "" && (err == nil || !strings.Contains(err.Error(), want)):
+			t.Errorf("%s: have %v, want %q", file, err, want)
+		}
+	}
+}
