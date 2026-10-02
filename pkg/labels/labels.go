@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 
@@ -13,6 +14,10 @@ import (
 	"cuelang.org/go/cue/token"
 	"github.com/freddieptf/cueform/encoding/xlsform"
 )
+
+// the translatable columns that hold text; translated media (image, audio, ...) names files,
+// which stay in the form
+var textColumns = []string{"label", "hint", "guidance_hint", "required_message", "constraint_message"}
 
 type label struct {
 	text string
@@ -260,7 +265,7 @@ func (e *extractor) extractLabels(node ast.Expr, path string) error {
 			return err
 		}
 		switch {
-		case xlsform.IsTranslatableColumn(name):
+		case slices.Contains(textColumns, name):
 			labels, ok := translations(f.Value)
 			if !ok {
 				continue

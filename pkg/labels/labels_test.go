@@ -223,3 +223,21 @@ func TestExtractLabelsPackage(t *testing.T) {
 		t.Errorf("want package survey in\n%s", result.Labels)
 	}
 }
+
+// only text is yanked; translated media names files and stays in the form
+func TestExtractLabelsSkipsMedia(t *testing.T) {
+	result, err := ExtractLabels("testdata/media_question/form.cue")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// fields are aligned by the formatter, so compare with whitespace collapsed
+	form := strings.Join(strings.Fields(string(result.Form)), " ")
+	for _, want := range []string{`label: _labels."photo/label"`, `guidance_hint: _labels."photo/guidance_hint"`, `"prompt_sw.mp3"`} {
+		if !strings.Contains(form, want) {
+			t.Errorf("form: want %s in\n%s", want, form)
+		}
+	}
+	if strings.Contains(string(result.Labels), "mp3") {
+		t.Errorf("labels: media was yanked\n%s", result.Labels)
+	}
+}

@@ -24,8 +24,10 @@ of writing them. Running it again on a yanked form changes nothing.
 - **Repeated text is stored once.** `member_age` has the same translations as `head_age`, so
   both refer to `_labels."household/head_age/label"`. Values share an entry only when every language
   matches, and entries already in `labels.cue` are reused when you run yank again.
-- **A choice with media keeps its media.** For `{well: {label: ..., image: "well.png"}}`, only
-  the label moves.
+- **Media stays in the form.** Only text moves: labels, hints, guidance hints and the required
+  and constraint messages. Media names files, so even translated media, such as
+  `audio: {"English (en)": "a.mp3"}`, stays put. For `{well: {label: ..., image: "well.png"}}`,
+  only the label moves.
 - **Single-language values stay put.** The `intro` note's plain `label` isn't a translation,
   so it isn't yanked.
 
@@ -41,4 +43,3 @@ alone, so questions imported from another package keep their translations there.
 
 #### Current limits
 
-- Translated media, such as `image: {"English (en)": "a.png"}`, is yanked along with the text.
