@@ -1,7 +1,7 @@
 package scripting
 
 import (
-	"github.com/freddieptf/cueform/sample/scripting/transform"
+	"github.com/freddieptf/cueform/examples/scripting/transform"
 	"github.com/freddieptf/cueform/xlsform"
 )
 

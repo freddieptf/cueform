@@ -113,7 +113,7 @@ func TestEncode(t *testing.T) {
 			},
 		}, {
 			// imports resolve from the form's own cue.mod, not the working directory
-			file: "../../sample/composition/person_registration.cue",
+			file: "../../examples/composition/person_registration.cue",
 			form: &xlsForm{
 				surveyColumnHeaders: []string{"type", "name", "label::en", "required", "appearance"},
 				survey: [][]string{

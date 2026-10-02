@@ -4,7 +4,7 @@
 
 Source: [XLSForm website](https://xlsform.org/en/)
 
-This repo provides a tool that converts CUE to XLSForm. It has full compatibility with XLS forms so we can do both `CUE -> XLSForm` and `XLSForm -> CUE` conversions. It uses the [same spec](https://xlsform.org/en/ref-table/) used by XLS forms. You can find example forms in the sample directory.
+This repo provides a tool that converts CUE to XLSForm. It has full compatibility with XLS forms so we can do both `CUE -> XLSForm` and `XLSForm -> CUE` conversions. It uses the [same spec](https://xlsform.org/en/ref-table/) used by XLS forms. You can find example forms in the examples directory.
 
 ### Download and Install
 

@@ -3,7 +3,7 @@ package composition
 import (
 	"list"
 
-	"github.com/freddieptf/cueform/sample/composition/registration"
+	"github.com/freddieptf/cueform/examples/composition/registration"
 	"github.com/freddieptf/cueform/xlsform"
 )
 

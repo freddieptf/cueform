@@ -12,7 +12,7 @@ file next to it. The form keeps its structure, and each translation becomes a re
 which rewrites `form.cue` in place and writes `labels.cue`. Add `-dry` to print both files instead
 of writing them. Running it again on a yanked form changes nothing.
 
-#### What the sample shows
+#### What the example shows
 
 - **Translated values move to `labels.cue`.** Each `{"English (en)": ..., "Swahili (sw)": ...}`
   label and hint is replaced by a reference. Entries are keyed by element and column
@@ -26,8 +26,8 @@ of writing them. Running it again on a yanked form changes nothing.
 
 The encoder loads `labels.cue` with the form, so both versions encode to the same spreadsheet:
 
-    cueform encode -out /tmp sample/yank/before/form.cue
-    cueform encode -out /tmp sample/yank/after/form.cue
+    cueform encode -out /tmp examples/yank/before/form.cue
+    cueform encode -out /tmp examples/yank/after/form.cue
 
 #### Current limits
 

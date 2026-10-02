@@ -103,10 +103,10 @@ directory contains a file named `labels.cue`, that file is loaded into
 the same instance. This is how labels extracted by `cueform yank labels`
 are resolved at encode time. The load runs with `Dir` set to the form's
 directory, so CUE finds `cue.mod` by walking up from the form, wherever
-the command runs. For example, `cueform encode sample/scripting/survey.cue`
+the command runs. For example, `cueform encode examples/scripting/survey.cue`
 works from the repository root. Only the form and `labels.cue` are
 loaded, not the whole package. That matters when several forms share a
-package, as in `sample/composition`.
+package, as in `examples/composition`.
 
 ## func LoadValue
 
