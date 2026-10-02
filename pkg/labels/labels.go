@@ -6,6 +6,7 @@ import (
 	"log"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 
 	"cuelang.org/go/cue"
@@ -67,7 +68,7 @@ func extractLabels(defaultLang string, form, labels *ast.File) (formFile []byte,
 		err = errors.New("did not find form file")
 		return
 	}
-	elementLabels, err := getLabels(defaultLang, form)
+	elementLabels, err := getLabels(defaultLang, form, existingLabels(labels))
 	if err != nil {
 		return
 	}
@@ -98,8 +99,12 @@ func getDefaultLang(formPath string) (string, error) {
 	}
 }
 
-func getLabels(defaultLang string, form *ast.File) ([]elementLabel, error) {
+func getLabels(defaultLang string, form *ast.File, existing []elementLabel) ([]elementLabel, error) {
 	labelExtractor := newExtractor()
+	// reuse entries already in labels.cue, so running yank again doesn't duplicate them
+	for _, l := range existing {
+		labelExtractor.trackUniq[translationKey(l.labels)] = l.id
+	}
 	for _, el := range form.Decls {
 		switch v := el.(type) {
 		case *ast.Field:
@@ -152,8 +157,83 @@ func buildLabelsFile(file *ast.File, labels []elementLabel) (*ast.File, error) {
 }
 
 type extractor struct {
+	// entry id by translationKey, so identical translations share one entry
 	trackUniq map[string]string
 	elements  []elementLabel
+}
+
+// reference returns the _labels reference for a translated value, adding an entry with the given
+// id unless the same translations already have one
+func (e *extractor) reference(labels elementLabel, id string) ast.Expr {
+	key := translationKey(labels.labels)
+	if _, exists := e.trackUniq[key]; !exists {
+		labels.id = id
+		e.trackUniq[key] = id
+		e.elements = append(e.elements, labels)
+	}
+	return &ast.SelectorExpr{X: ast.NewIdent("_labels"), Sel: ast.NewString(e.trackUniq[key])}
+}
+
+// translationKey identifies a value by all of its translations: two values share an entry only
+// when every language has the same text
+func translationKey(labels []label) string {
+	pairs := make([]string, len(labels))
+	for i, l := range labels {
+		pairs[i] = l.lang + "\x00" + l.text
+	}
+	sort.Strings(pairs)
+	return strings.Join(pairs, "\x01")
+}
+
+// existingLabels reads the entries already in labels.cue
+func existingLabels(file *ast.File) []elementLabel {
+	if file == nil {
+		return nil
+	}
+	var entries []elementLabel
+	for _, decl := range file.Decls {
+		field, ok := decl.(*ast.Field)
+		if !ok {
+			continue
+		}
+		if name, _, _ := ast.LabelName(field.Label); name != "_labels" {
+			continue
+		}
+		labelMap, ok := field.Value.(*ast.StructLit)
+		if !ok {
+			continue
+		}
+		for _, el := range labelMap.Elts {
+			entry, ok := el.(*ast.Field)
+			if !ok {
+				continue
+			}
+			id, _, _ := ast.LabelName(entry.Label)
+			translations, ok := entry.Value.(*ast.StructLit)
+			if !ok {
+				continue
+			}
+			l := elementLabel{id: id}
+			for _, t := range translations.Elts {
+				tf, ok := t.(*ast.Field)
+				if !ok {
+					continue
+				}
+				lit, ok := tf.Value.(*ast.BasicLit)
+				if !ok {
+					continue
+				}
+				lang, _, _ := ast.LabelName(tf.Label)
+				text, err := literal.Unquote(lit.Value)
+				if err != nil {
+					continue
+				}
+				l.labels = append(l.labels, label{lang: lang, text: text})
+			}
+			entries = append(entries, l)
+		}
+	}
+	return entries
 }
 
 func newExtractor() *extractor {
@@ -188,16 +268,10 @@ func (e *extractor) extractLabels(defaultLang string, node *ast.BinaryExpr) erro
 				}
 				labels.labels = append(labels.labels, label)
 			}
-			defaultText, err := getDefaultText(defaultLang, labels)
-			if err != nil {
+			if _, err := getDefaultText(defaultLang, labels); err != nil {
 				return err
 			}
-			if _, exists := e.trackUniq[defaultText]; !exists {
-				labels.id = fmt.Sprintf("%s/%s", elName, name)
-				e.trackUniq[defaultText] = labels.id
-				e.elements = append(e.elements, labels)
-			}
-			f.(*ast.Field).Value = &ast.SelectorExpr{X: ast.NewIdent("_labels"), Sel: ast.NewString(e.trackUniq[defaultText])}
+			f.(*ast.Field).Value = e.reference(labels, fmt.Sprintf("%s/%s", elName, name))
 		} else if name == "choices" {
 			switch v := f.(*ast.Field).Value.(type) {
 			case *ast.BinaryExpr:
@@ -235,16 +309,10 @@ func (e *extractor) extractLabels(defaultLang string, node *ast.BinaryExpr) erro
 							}
 							labels.labels = append(labels.labels, label)
 						}
-						defaultText, err := getDefaultText(defaultLang, labels)
-						if err != nil {
+						if _, err := getDefaultText(defaultLang, labels); err != nil {
 							return err
 						}
-						if _, exists := e.trackUniq[defaultText]; !exists {
-							labels.id = fmt.Sprintf("%s/%s", elName, key)
-							e.trackUniq[defaultText] = labels.id
-							e.elements = append(e.elements, labels)
-						}
-						target.Value = &ast.SelectorExpr{X: ast.NewIdent("_labels"), Sel: ast.NewString(e.trackUniq[defaultText])}
+						target.Value = e.reference(labels, fmt.Sprintf("%s/%s", elName, key))
 					}
 				}
 			}

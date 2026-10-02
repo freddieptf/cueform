@@ -67,7 +67,7 @@ member: xlsform.#Group & {
 		"Swahili (sw)": "Mwanakaya"
 	}
 	children: [
-		// the same English text as head_age's label, so both use one entry in labels.cue
+		// the same translations as head_age's label, so both use one entry in labels.cue
 		xlsform.#Question & {
 			type: "integer"
 			name: "member_age"

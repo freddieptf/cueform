@@ -102,7 +102,7 @@ func TestExtractLabels(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.file, func(t *testing.T) {
 			instances := load.Instances([]string{tc.file}, &load.Config{})
-			labels, err := getLabels("English (en)", instances[0].Files[0])
+			labels, err := getLabels("English (en)", instances[0].Files[0], nil)
 			if err != tc.err {
 				t.Fatalf("have %s but want %s", err, tc.err)
 			}
@@ -126,5 +126,25 @@ func TestExtractLabelsChoiceMedia(t *testing.T) {
 	}
 	if want := `"fruit/apple": {`; !strings.Contains(string(result.Labels), want) {
 		t.Errorf("labels: want %s in\n%s", want, result.Labels)
+	}
+}
+
+// values share an entry only when every translation matches, including entries in labels.cue
+func TestExtractLabelsDedupe(t *testing.T) {
+	result, err := ExtractLabels("testdata/dedupe/form.cue")
+	if err != nil {
+		t.Fatal(err)
+	}
+	form, labels := string(result.Form), string(result.Labels)
+	for _, want := range []string{`name: "a", label: _labels."a/label"`, `name: "b", label: _labels."b/label"`, `name: "c", label: _labels."a/label"`, `name: "v", label: _labels."old/label"`} {
+		if !strings.Contains(form, want) {
+			t.Errorf("form: want %s in\n%s", want, form)
+		}
+	}
+	if !strings.Contains(labels, `"Swahili (sw)": "Jina la mtoto"`) {
+		t.Errorf("labels: b's own translation is missing\n%s", labels)
+	}
+	if n := strings.Count(labels, "Kijiji"); n != 1 {
+		t.Errorf("labels: the existing entry appears %d times\n%s", n, labels)
 	}
 }

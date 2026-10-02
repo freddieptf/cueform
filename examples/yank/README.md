@@ -17,8 +17,9 @@ of writing them. Running it again on a yanked form changes nothing.
 - **Translated values move to `labels.cue`.** Each `{"English (en)": ..., "Swahili (sw)": ...}`
   label and hint is replaced by a reference. Entries are keyed by element and column
   (`"head_age/hint"`), or by list and choice for choices (`"water_sources/tap"`).
-- **Repeated text is stored once.** `member_age` has the same English label as `head_age`, so
-  both refer to `_labels."head_age/label"`. Entries are matched on the default language's text.
+- **Repeated text is stored once.** `member_age` has the same translations as `head_age`, so
+  both refer to `_labels."head_age/label"`. Values share an entry only when every language
+  matches, and entries already in `labels.cue` are reused when you run yank again.
 - **A choice with media keeps its media.** For `{well: {label: ..., image: "well.png"}}`, only
   the label moves.
 - **Single-language values stay put.** The `intro` note's plain `label` isn't a translation,
@@ -31,8 +32,8 @@ The encoder loads `labels.cue` with the form, so both versions encode to the sam
 
 #### Current limits
 
-- The form needs `form_settings` with `default_language`, which decides when two texts are the
-  same.
+- The form needs `form_settings` with `default_language`, and every translated value needs a
+  default-language entry.
 - Language keys must look like `Name (code)`, for example `"English (en)"`. A key such as `en`
   fails with `ErrInvalidLabel`.
 - `labels.cue` is always `package main`, so the form must be `package main` too.
