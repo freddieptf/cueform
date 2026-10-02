@@ -511,3 +511,55 @@ func TestDecodeMalformedRows(t *testing.T) {
 		}
 	}
 }
+
+// only begin/end group and repeat rows open and close groups; an "end" question records when the
+// form was finished
+func TestDecodeGroupRows(t *testing.T) {
+	decode := func(rows [][]string) (string, error) {
+		f := excelize.NewFile()
+		f.SetSheetName("Sheet1", "survey")
+		f.SetSheetRow("survey", "A1", &[]string{"type", "name", "label"})
+		for i, row := range rows {
+			f.SetSheetRow("survey", fmt.Sprintf("A%d", i+2), &row)
+		}
+		buf, err := f.WriteToBuffer()
+		if err != nil {
+			t.Fatal(err)
+		}
+		src, err := NewDecoder("x").Decode(buf)
+		return string(src), err
+	}
+
+	src, err := decode([][]string{{"begin_group", "g", "G"}, {"end", "finished"}, {"text", "after", "After"}, {"end_group"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := `children: [
+			x.#Question & {
+				type: "end"
+				name: "finished"
+			},
+			x.#Question & {
+				type:  "text"
+				name:  "after"
+				label: "After"
+			},
+		]`
+	if !strings.Contains(src, want) {
+		t.Errorf("the end question and the row after it should stay in the group:\n%s", src)
+	}
+
+	for _, tc := range []struct {
+		name string
+		rows [][]string
+		want string
+	}{
+		{"stray end", [][]string{{"text", "a", "A"}, {"end_group"}, {"text", "b", "B"}}, `survey row 3: "end_group" has no matching begin_group`},
+		{"unclosed", [][]string{{"begin_group", "g", "G"}, {"text", "a", "A"}}, `survey row 2 begins group "g", which has no end_group row`},
+		{"mismatched", [][]string{{"begin group", "g", "G"}, {"text", "a", "A"}, {"end repeat"}}, `survey row 4: "end repeat" has no matching begin_repeat`},
+	} {
+		if _, err := decode(tc.rows); !errors.Is(err, ErrInvalidXLSForm) || !strings.Contains(err.Error(), tc.want) {
+			t.Errorf("%s: have %v, want %q", tc.name, err, tc.want)
+		}
+	}
+}

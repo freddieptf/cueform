@@ -522,9 +522,15 @@ warning for each: `warning: choices column "image" is dropped: choice media isn'
   `end` row needs a `name`, as in pyxform. Otherwise decoding fails with
   `ErrInvalidXLSForm` naming the sheet row:
   `survey row 3 (text) has no name`.
-- A row whose type starts with `begin` becomes `pkg.#Group & {...}`. The
-  rows after it, up to the next row whose type starts with `end`, go
-  into its `children`. Groups can be nested.
+- A `begin_group`, `begin group`, `begin_repeat` or `begin repeat` row
+  becomes `pkg.#Group & {...}`. The rows after it, up to its matching
+  `end_group`/`end_repeat` row (with `_` or a space), go into its
+  `children`. Groups can be nested. Other types that start with `begin`
+  or `end`, such as the `end` question that records when a form was
+  finished, are ordinary questions. As in pyxform, an end row without a
+  matching begin, an end row of the wrong kind, and a group with no end
+  row each fail with `ErrInvalidXLSForm`, for example
+  `survey row 2 begins group "g", which has no end_group row`.
 - Every other row becomes `pkg.#Question & {...}`.
 - A type of `select_<x> <list>` or `rank <list>` is split into
   `type: "select_<x>"` (or `"rank"`) and a `choices` field that holds the
@@ -549,8 +555,7 @@ warning for each: `warning: choices column "image" is dropped: choice media isn'
 - Every other cell becomes a string field named after its header, with
   its value read as described in [Cell values](#decoding-rules).
 - Each top-level element becomes a top-level field named after its
-  `name` value. Elements with one field or fewer, such as stray `end`
-  rows, are skipped.
+  `name` value.
 
 **Settings.** If the settings sheet has exactly one data row, it becomes
 `form_settings: pkg.#Settings & {type: "settings", ...}`. Every value is
@@ -568,10 +573,6 @@ These describe current behavior. Most are bugs or gaps.
   back with `yes`. pyxform reads both as `true()`, so the form is the
   same.
 
-- **The `end` metadata type breaks decoding.** The decoder treats any
-  row whose type starts with `end` as the close of a group. An `end`
-  metadata question, which the schema allows, ends the enclosing group
-  early, or the whole survey if it is at the top level.
 - **Numbers come back as strings.** `repeat_count: 3` encodes as `3` and
   decodes as `repeat_count: "3"`. pyxform reads both the same way.
 - **Unusual date cells differ from pyxform.** No XLSForm column needs
@@ -585,8 +586,6 @@ These describe current behavior. Most are bugs or gaps.
   lose digits.
 - **Choice media is lost.** The encoder can't write choice `image`,
   `audio` or `video` columns, and the decoder drops them with a warning.
-- **An early `end` stops decoding.** An `end` row at the top level,
-  with no matching `begin`, ends the survey. Rows after it are dropped.
 - **Choice-list order is not fixed.** Choice lists are built from a
   Go map. That doesn't change the output, because each list is
   attached to the question that uses it, but it matters if you add code

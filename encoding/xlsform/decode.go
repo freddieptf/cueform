@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"regexp"
 	"slices"
 	"strings"
 
@@ -224,7 +225,7 @@ func (form *xlsForm) toAstFile(i *ast.ImportSpec) (*ast.File, error) {
 		return nil, err
 	}
 	root := ast.NewStruct()
-	_, err = form.surveyToAst(importInfo, root, 0, choiceMap)
+	_, err = form.surveyToAst(importInfo, root, 0, choiceMap, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -326,12 +327,26 @@ func buildChoiceStruct(choiceListName string, columns []string, rows [][]string)
 	return choice, nil
 }
 
-// surveyToAst converts survey rows to valid survey exprs. We use the passed in struct n as the root level node which holds all the top level elements in the survey sheet
-func (form *xlsForm) surveyToAst(importInfo astutil.ImportInfo, n *ast.StructLit, idx int, choiceMap map[string]ast.Expr) (int, error) {
+// groupRowRe matches pyxform's group rows: begin or end, then _ or a space, then group or repeat.
+// An "end" question type, which records when the form was finished, doesn't match.
+var groupRowRe = regexp.MustCompile(`^(begin|end)[ _](group|repeat)$`)
+
+// openGroup is the group or repeat whose rows surveyToAst is reading
+type openGroup struct {
+	kind, name string
+	row        int
+}
+
+// surveyToAst converts survey rows to valid survey exprs. We use the passed in struct n as the root level node which holds all the top level elements in the survey sheet.
+// open is the group the rows belong to, or nil at the top level.
+func (form *xlsForm) surveyToAst(importInfo astutil.ImportInfo, n *ast.StructLit, idx int, choiceMap map[string]ast.Expr, open *openGroup) (int, error) {
 	elList := &ast.ListLit{Rbrack: token.Newline.Pos()}
 	n.Elts = append(n.Elts, &ast.Field{Label: ast.NewIdent("children"), Value: elList})
 	for {
 		if idx > len(form.survey)-1 {
+			if open != nil {
+				return idx, fmt.Errorf("%w: survey row %d begins %s %q, which has no end_%s row", ErrInvalidXLSForm, open.row, open.kind, open.name, open.kind)
+			}
 			return idx, nil
 		}
 		row := form.survey[idx]
@@ -345,21 +360,27 @@ func (form *xlsForm) surveyToAst(importInfo astutil.ImportInfo, n *ast.StructLit
 		if elementType == "" {
 			return idx, fmt.Errorf("%w: survey row %d has no type", ErrInvalidXLSForm, rowNumber)
 		}
-		if !strings.HasPrefix(elementType, "end") && form.surveyCell(row, "name") == "" {
+		groupRow := groupRowRe.FindStringSubmatch(elementType)
+		if groupRow != nil && groupRow[1] == "end" {
+			if open == nil || open.kind != groupRow[2] {
+				return idx, fmt.Errorf("%w: survey row %d: %q has no matching begin_%s", ErrInvalidXLSForm, rowNumber, elementType, groupRow[2])
+			}
+			return idx, nil
+		}
+		name := form.surveyCell(row, "name")
+		if name == "" {
 			return idx, fmt.Errorf("%w: survey row %d (%s) has no name", ErrInvalidXLSForm, rowNumber, elementType)
 		}
-		if strings.HasPrefix(elementType, "begin") {
+		if groupRow != nil {
 			group, err := buildSurveyElement(true, form.surveyColumnHeaders, row, choiceMap)
 			if err != nil {
 				return idx, err
 			}
-			idx, err = form.surveyToAst(importInfo, group, idx, choiceMap)
+			idx, err = form.surveyToAst(importInfo, group, idx, choiceMap, &openGroup{kind: groupRow[2], name: name, row: rowNumber})
 			if err != nil {
 				return idx, err
 			}
 			elList.Elts = append(elList.Elts, newConjuction(importInfo, "Group", group))
-		} else if strings.HasPrefix(elementType, "end") {
-			return idx, nil
 		} else {
 			el, err := buildSurveyElement(false, form.surveyColumnHeaders, row, choiceMap)
 			if err != nil {
