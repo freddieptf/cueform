@@ -525,11 +525,23 @@ func settingBoolValue(value string) (bool, bool) {
 }
 
 func (form *xlsForm) settingsToAst(importInfo astutil.ImportInfo) *ast.Field {
-	if len(form.settings) != 1 {
+	// pyxform uses the first settings row and ignores the rest
+	var row []string
+	for i, r := range form.settings {
+		if !slices.ContainsFunc(r, func(c string) bool { return c != "" }) {
+			continue
+		}
+		if row != nil {
+			// the header is sheet row 1
+			log.Printf("warning: settings row %d is ignored: only the first settings row is used", i+2)
+			continue
+		}
+		row = r
+	}
+	if row == nil {
 		return nil
 	}
 	settings := ast.NewStruct(&ast.Field{Label: ast.NewIdent("type"), Value: ast.NewString("settings")})
-	row := form.settings[0]
 	for idx, header := range form.settingColumnHeaders {
 		// a row shorter than the header leaves the last settings empty
 		if idx >= len(row) || row[idx] == "" {

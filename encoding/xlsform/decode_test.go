@@ -622,3 +622,28 @@ func TestExtractChoices(t *testing.T) {
 		t.Errorf("no warning for the row without a list_name in %q", logs.String())
 	}
 }
+
+// pyxform uses the first settings row; the rest are ignored with a warning
+func TestDecodeSettingsRows(t *testing.T) {
+	var logs bytes.Buffer
+	log.SetOutput(&logs)
+	t.Cleanup(func() { log.SetOutput(os.Stderr) })
+
+	form := &xlsForm{
+		settingColumnHeaders: []string{"form_title", "form_id"},
+		settings:             [][]string{{}, {"First", "first_id"}, {"Second", "second_id"}},
+	}
+	b, err := format.Node(form.settingsToAst(astutil.ImportInfo{Ident: "x"}).Value, format.Simplify())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(b), `form_title: "First"`) || strings.Contains(string(b), "Second") {
+		t.Errorf("want only the first non-empty row in\n%s", b)
+	}
+	if !strings.Contains(logs.String(), "settings row 4 is ignored") {
+		t.Errorf("no warning for the second row in %q", logs.String())
+	}
+	if (&xlsForm{settingColumnHeaders: []string{"form_title"}}).settingsToAst(astutil.ImportInfo{Ident: "x"}) != nil {
+		t.Error("a settings sheet with no data rows should give no form_settings")
+	}
+}

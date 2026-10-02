@@ -586,8 +586,9 @@ are left out. The exception is the yes/no flags pyxform reads with its
 `omit_instanceID`, `client_editable`, `add_none_option`). Their yes/no
 spellings, plus `true()` and `false()`, decode as CUE bools.
 `auto_send` and `auto_delete` stay strings: pyxform copies them into the
-XForm as written, so the schema requires the text `"true"` or `"false"`. The decoder ignores the settings sheet if it has zero data
-rows or more than one.
+XForm as written, so the schema requires the text `"true"` or `"false"`. As in pyxform, only the first non-empty settings row is used; any
+later rows are ignored with a warning naming them. A settings sheet with
+no data rows gives no `form_settings`.
 
 ## Caveats
 
