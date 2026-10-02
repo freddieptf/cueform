@@ -102,7 +102,7 @@ func TestExtractLabels(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.file, func(t *testing.T) {
 			instances := load.Instances([]string{tc.file}, &load.Config{})
-			labels, err := getLabels("English (en)", instances[0].Files[0], nil)
+			labels, err := getLabels(instances[0].Files[0], nil)
 			if err != tc.err {
 				t.Fatalf("have %s but want %s", err, tc.err)
 			}
@@ -185,5 +185,16 @@ func TestExtractLabelsShapes(t *testing.T) {
 		if !strings.Contains(form, want) {
 			t.Errorf("want %s in\n%s", want, form)
 		}
+	}
+}
+
+// yank doesn't need form_settings or a default language
+func TestExtractLabelsNoSettings(t *testing.T) {
+	result, err := ExtractLabels("testdata/no_settings/form.cue")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := `label: _labels."q/label"`; !strings.Contains(string(result.Form), want) {
+		t.Errorf("want %s in\n%s", want, result.Form)
 	}
 }

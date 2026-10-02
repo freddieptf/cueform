@@ -41,8 +41,6 @@ alone, so questions imported from another package keep their translations there.
 
 #### Current limits
 
-- The form needs `form_settings` with `default_language`, and every translated value needs a
-  default-language entry.
 - Language keys must look like `Name (code)`, for example `"English (en)"`. A key such as `en`
   fails with `ErrInvalidLabel`.
 - `labels.cue` is always `package main`, so the form must be `package main` too.

@@ -8,7 +8,6 @@ import (
 	"sort"
 	"strings"
 
-	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/ast"
 	"cuelang.org/go/cue/format"
 	"cuelang.org/go/cue/literal"
@@ -37,10 +36,6 @@ type Result struct {
 }
 
 func ExtractLabels(formPath string) (*Result, error) {
-	defaultLang, err := getDefaultLang(formPath)
-	if err != nil {
-		return nil, err
-	}
 	instances, err := xlsform.LoadInstance(formPath)
 	if err != nil {
 		return nil, err
@@ -56,19 +51,19 @@ func ExtractLabels(formPath string) (*Result, error) {
 			labelFile = file
 		}
 	}
-	form, labels, err := extractLabels(defaultLang, formFile, labelFile)
+	form, labels, err := extractLabels(formFile, labelFile)
 	if err != nil {
 		return nil, err
 	}
 	return &Result{Form: form, Labels: labels}, nil
 }
 
-func extractLabels(defaultLang string, form, labels *ast.File) (formFile []byte, labelsFile []byte, err error) {
+func extractLabels(form, labels *ast.File) (formFile []byte, labelsFile []byte, err error) {
 	if form == nil {
 		err = errors.New("did not find form file")
 		return
 	}
-	elementLabels, err := getLabels(defaultLang, form, existingLabels(labels))
+	elementLabels, err := getLabels(form, existingLabels(labels))
 	if err != nil {
 		return
 	}
@@ -87,19 +82,7 @@ func extractLabels(defaultLang string, form, labels *ast.File) (formFile []byte,
 	return
 }
 
-func getDefaultLang(formPath string) (string, error) {
-	form, err := xlsform.ParseCueForm(formPath)
-	if err != nil {
-		return "", err
-	}
-	if defVal := form.Settings.LookupPath(cue.ParsePath("default_language")); !defVal.Exists() {
-		return "", fmt.Errorf("no default lang defined")
-	} else {
-		return defVal.String()
-	}
-}
-
-func getLabels(defaultLang string, form *ast.File, existing []elementLabel) ([]elementLabel, error) {
+func getLabels(form *ast.File, existing []elementLabel) ([]elementLabel, error) {
 	labelExtractor := newExtractor()
 	// reuse entries already in labels.cue, so running yank again doesn't duplicate them
 	for _, l := range existing {
@@ -120,7 +103,7 @@ func getLabels(defaultLang string, form *ast.File, existing []elementLabel) ([]e
 		if strings.HasPrefix(name, "#") || strings.HasPrefix(name, "_#") || name == "_labels" {
 			continue
 		}
-		if err := labelExtractor.extractLabels(defaultLang, field.Value, ""); err != nil {
+		if err := labelExtractor.extractLabels(field.Value, ""); err != nil {
 			return nil, err
 		}
 	}
@@ -251,14 +234,14 @@ func newExtractor() *extractor {
 // such as "mother/age/label" stay distinct when names repeat in different groups. Values that
 // aren't struct literals, such as references to questions defined elsewhere, are skipped: their
 // translations live where they are defined.
-func (e *extractor) extractLabels(defaultLang string, node ast.Expr, path string) error {
+func (e *extractor) extractLabels(node ast.Expr, path string) error {
 	elStruct := elementStruct(node)
 	if elStruct == nil {
 		return nil
 	}
 	// a choice list defined on its own, such as _yes_no: #Choices & {...}
 	if hasField(elStruct, "list_name") {
-		return e.extractChoices(defaultLang, node)
+		return e.extractChoices(node)
 	}
 	elName := getElementName(elStruct)
 	if elName == "" {
@@ -287,17 +270,14 @@ func (e *extractor) extractLabels(defaultLang string, node ast.Expr, path string
 			if !ok {
 				continue
 			}
-			if _, err := getDefaultText(defaultLang, labels); err != nil {
-				return err
-			}
 			f.Value = e.reference(labels, fmt.Sprintf("%s/%s", elPath, name))
 		case name == "choices":
-			if err := e.extractChoices(defaultLang, f.Value); err != nil {
+			if err := e.extractChoices(f.Value); err != nil {
 				return err
 			}
 		case name == "children":
 			for _, child := range elementsIn(f.Value) {
-				if err := e.extractLabels(defaultLang, child, elPath); err != nil {
+				if err := e.extractLabels(child, elPath); err != nil {
 					return err
 				}
 			}
@@ -308,7 +288,7 @@ func (e *extractor) extractLabels(defaultLang string, node ast.Expr, path string
 
 // extractChoices yanks the labels of a choice list. Choice lists are named across the whole form,
 // so their ids are "list/choice".
-func (e *extractor) extractChoices(defaultLang string, node ast.Expr) error {
+func (e *extractor) extractChoices(node ast.Expr) error {
 	list := elementStruct(node)
 	if list == nil {
 		return nil
@@ -351,9 +331,6 @@ func (e *extractor) extractChoices(defaultLang string, node ast.Expr) error {
 				}
 				if !ok {
 					continue
-				}
-				if _, err := getDefaultText(defaultLang, labels); err != nil {
-					return err
 				}
 				target.Value = e.reference(labels, fmt.Sprintf("%s/%s", listName, key))
 			}
@@ -490,19 +467,4 @@ func getLabelFromField(field *ast.Field) (label, bool, error) {
 		return label{}, false, xlsform.ErrInvalidLabel
 	}
 	return label{lang: lang, langCode: match[2], text: text}, true, nil
-}
-
-func getDefaultText(defaultLang string, label elementLabel) (string, error) {
-	var defaultText string
-	for _, l := range label.labels {
-		if l.lang != defaultLang {
-			continue
-		}
-		defaultText = l.text
-		break
-	}
-	if defaultText == "" {
-		return "", fmt.Errorf("found labels with no entry for default lang: %+v", label.labels)
-	}
-	return defaultText, nil
 }
