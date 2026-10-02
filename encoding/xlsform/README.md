@@ -42,13 +42,16 @@ var (
 	ErrInvalidXLSFormSheet = errors.New("found xlsform sheet missing a required column")
 	ErrInvalidLabel        = errors.New("found translatable column with no language code")
 	ErrUnsupportedSheet    = errors.New("found a sheet cueform doesn't support")
+	ErrUnsupportedType     = errors.New("found a question type cueform doesn't support")
 )
 ```
 
 The decoder returns these errors. `ErrInvalidXLSForm` means a required
 sheet is missing or empty. `ErrInvalidXLSFormSheet` means a sheet is
 missing a required column. `ErrUnsupportedSheet` means the workbook has
-a sheet cueform doesn't support, such as `entities`. `ErrInvalidLabel` means a translatable
+a sheet cueform doesn't support, such as `entities`, and
+`ErrUnsupportedType` a question type it doesn't support, such as
+`begin loop`. `ErrInvalidLabel` means a translatable
 column header is malformed, such as `label:en` with a single colon.
 `GetLangFromCol` wraps `ErrInvalidLabel`, so check for it with
 `errors.Is`.
@@ -537,7 +540,9 @@ decodes as `{nairobi: {label: ..., image: ...}}`. pyxform's older
   finished, are ordinary questions. As in pyxform, an end row without a
   matching begin, an end row of the wrong kind, and a group with no end
   row each fail with `ErrInvalidXLSForm`, for example
-  `survey row 2 begins group "g", which has no end_group row`.
+  `survey row 2 begins group "g", which has no end_group row`. pyxform's
+  older group kinds (`begin loop`, `begin lgroup`, `begin looped group`)
+  aren't supported and fail with `ErrUnsupportedType`.
 - Every other row becomes `pkg.#Question & {...}`.
 - A type of `select_<x> <list>` or `rank <list>` is split into
   `type: "select_<x>"` (or `"rank"`) and a `choices` field that holds the

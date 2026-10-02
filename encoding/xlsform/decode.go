@@ -22,6 +22,7 @@ var (
 	ErrInvalidXLSFormSheet = errors.New("found xlsform sheet missing a required column")
 	ErrInvalidLabel        = errors.New("found translatable column with no language code")
 	ErrUnsupportedSheet    = errors.New("found a sheet cueform doesn't support")
+	ErrUnsupportedType     = errors.New("found a question type cueform doesn't support")
 	// pyxform adds the "other" choice to the shared list, so every question using it shows it
 	ErrOrOther = errors.New(`or_other is not supported; add an "other" choice and a text question with relevant, as the XLSForm spec recommends`)
 
@@ -350,6 +351,9 @@ func buildChoiceStruct(choiceListName string, columns []string, rows [][]string)
 // An "end" question type, which records when the form was finished, doesn't match.
 var groupRowRe = regexp.MustCompile(`^(begin|end)[ _](group|repeat)$`)
 
+// pyxform's older group kinds, which cueform doesn't support
+var legacyGroupRowRe = regexp.MustCompile(`^(begin|end)[ _](lgroup|loop|looped group)$`)
+
 // openGroup is the group or repeat whose rows surveyToAst is reading
 type openGroup struct {
 	kind, name string
@@ -378,6 +382,9 @@ func (form *xlsForm) surveyToAst(importInfo astutil.ImportInfo, n *ast.StructLit
 		elementType := form.surveyCell(row, "type")
 		if elementType == "" {
 			return idx, fmt.Errorf("%w: survey row %d has no type", ErrInvalidXLSForm, rowNumber)
+		}
+		if legacyGroupRowRe.MatchString(elementType) {
+			return idx, fmt.Errorf("%w: survey row %d: %q; use begin_group or begin_repeat", ErrUnsupportedType, rowNumber, elementType)
 		}
 		groupRow := groupRowRe.FindStringSubmatch(elementType)
 		if groupRow != nil && groupRow[1] == "end" {
