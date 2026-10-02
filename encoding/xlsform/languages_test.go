@@ -8,7 +8,8 @@ import (
 	"testing"
 )
 
-// languages must be written as the spec recommends: a name, one space, and a two-letter code
+// languages must be written as the spec recommends: a name, one space, and a code in brackets;
+// any code is accepted
 func TestLanguagesNotRecommended(t *testing.T) {
 	for lang, ok := range map[string]bool{
 		"English (en)":            true,
@@ -22,10 +23,12 @@ func TestLanguagesNotRecommended(t *testing.T) {
 		"Dutch(nl)":         false,
 		"Dutch  (nl)":       false,
 		" Dutch (nl)":       false,
-		"Dutch (NL)":        false,
-		"Luo (luo)":         false,
-		"Chinese (zh-Hans)": false,
-		"Foo (xx)":          false,
+		"Dutch (NL)":        true,
+		"Luo (luo)":         true,
+		"Chinese (zh-Hans)": true,
+		"Foo (xx)":          true,
+		"Dutch ()":          false,
+		"Dutch (n l)":       false,
 		"(en)":              false,
 	} {
 		bad := languagesNotRecommended([]string{lang})
@@ -53,7 +56,7 @@ func TestEncodeLanguageWarning(t *testing.T) {
 	if _, err := NewEncoder().Encode("testdata/form.cue"); err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(logs.String(), "two-letter code") {
+	if strings.Contains(logs.String(), "name and code") {
 		t.Errorf("unexpected warning %q", logs.String())
 	}
 }
