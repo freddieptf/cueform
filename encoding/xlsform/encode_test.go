@@ -208,7 +208,7 @@ func TestEncode(t *testing.T) {
 			},
 		}, {
 			file: "testdata/form_select_no_choices.cue",
-			err:  "smokes does not match the schema: #Question.choices: field is required but not present",
+			err:  "smokes: select_one needs choices, or choices_from naming a question in a repeat",
 		}, {
 			// names must be unique within their group; the first "age" child is fine
 			file: "testdata/form_duplicate_name.cue",
@@ -253,6 +253,28 @@ func TestEncode(t *testing.T) {
 		}, {
 			file: "testdata/form_from_file_bad_extension.cue",
 			err:  "city does not match the schema: #Question.file: invalid value",
+		}, {
+			// choices_from lists the answers to a question in a repeat
+			file: "testdata/form_choices_from.cue",
+			form: &xlsForm{
+				surveyColumnHeaders: []string{"type", "name", "label"},
+				survey: [][]string{
+					{"begin_repeat", "trees", "Trees"},
+					{"text", "tree_name", "Tree name"},
+					{"end_repeat"},
+					{"select_one ${tree_name}", "best", "Best tree"},
+					{"rank ${tree_name}", "ranked", "Rank the trees"},
+				},
+			},
+		}, {
+			file: "testdata/form_choices_from_missing.cue",
+			err:  `best.choices_from: no question is named "tree"`,
+		}, {
+			file: "testdata/form_choices_from_no_repeat.cue",
+			err:  `best.choices_from: "tree_name" isn't inside a repeat`,
+		}, {
+			file: "testdata/form_choices_from_multiple.cue",
+			err:  "best.choices_from: pyxform doesn't support choices_from on select_multiple",
 		}, {
 			file: "testdata/form_or_other.cue",
 			err:  "favourite.or_other: or_other is not supported",

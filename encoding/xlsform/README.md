@@ -297,9 +297,9 @@ against `#Question`.
   duplicate fails with both paths, for example
   `father.children[1]: name "age" is already used at father.children[0]`.
   The same name in different groups is fine.
-- `choices` is required on `select_one`, `select_multiple` and `rank`
-  questions; without it, the element fails with
-  `#Question.choices: field is required but not present`.
+- `select_one`, `select_multiple` and `rank` questions need `choices`
+  (or `choices_from`, below); without either, the element fails with
+  `<path>: select_one needs choices, or choices_from naming a question in a repeat`.
   The list must have at least one choice; an empty one fails with
   `#Question.choices.choices: incompatible list lengths (0 and 1)`.
 - `label` is required except on types that are never shown:
@@ -349,6 +349,16 @@ against `#Question`.
   have `choices`, and other types can't have `file`. `choice_filter`
   and `parameters` (such as `value=id label=full_name`) are written as
   usual.
+- A `select_one` or `rank` question can take its choices from the
+  answers to a question inside a repeat. `choices_from` names that
+  question as `${name}`, and it is written after the type:
+  `{type: "select_one", choices_from: "${tree_name}"}` becomes
+  `select_one ${tree_name}`. To keep the reference in step with the
+  question, interpolate its name: `choices_from: "${\(tree_name.name)}"`.
+  The encoder checks that the question exists and is inside a repeat,
+  and that the select has no `choices`. `select_multiple` is rejected,
+  because pyxform 4.5.0 fails on it
+  ([pyxform#773](https://github.com/XLSForm/pyxform/issues/773)).
 - `or_other` isn't supported. pyxform adds its "other" choice to the
   shared list, so every question using the list shows it. Add an
   "other" choice and a text question with `relevant`, as the XLSForm spec
@@ -475,7 +485,8 @@ the entry's `filterCategory`, as in
   `type: "select_<x>"` (or `"rank"`) and a `choices` field that holds the
   decoded `<list>` from the choices sheet.
   `select_one_from_file <file>` and `select_multiple_from_file <file>`
-  become `type` and `file: "<file>"`. A list the choices sheet
+  become `type` and `file: "<file>"`, and `select_one ${question}`
+  becomes `type` and `choices_from: "${question}"`. A list the choices sheet
   doesn't have fails with `ErrInvalidXLSForm`. A suffix after the list
   name, such as `or_other`, fails with `ErrOrOther`.
 - A translatable header `col::lang` becomes a struct

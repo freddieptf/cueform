@@ -228,6 +228,17 @@ func TestBuildSurveyElement(t *testing.T) {
 }`,
 		},
 		{
+			// a select from earlier answers names a ${question} rather than a choice list
+			colHeaders: []string{"type", "name", "label"},
+			row:        []string{"select_one ${tree_name}", "test", "Best tree"},
+			want: `{
+	type:         "select_one"
+	choices_from: "${tree_name}"
+	name:         "test"
+	label:        "Best tree"
+}`,
+		},
+		{
 			// a _from_file select names an attached file rather than a choice list
 			colHeaders: []string{"type", "name", "label", "parameters"},
 			row:        []string{"select_one_from_file cities.csv", "test", "City", "value=id"},

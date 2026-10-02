@@ -36,15 +36,14 @@ import "list"
 	choices?:            #Choices
 	// the attached CSV, XML or GeoJSON file a _from_file select reads its choices from
 	file?: =~"\\.(csv|xml|geojson)$"
+	// a ${question} inside a repeat, whose answers become the choices
+	choices_from?: =~"^\\$\\{[A-Za-z_][A-Za-z0-9_.-]*\\}$"
 	choice_filter?:      string
 	read_only?:          string | bool
 	calculation?:        string
 	appearance?:         string
 	if !list.Contains(#UnlabelledQuestionTypes, type) {
 		label!: #Text
-	}
-	if list.Contains(["select_one", "select_multiple", "rank"], type) {
-		choices!: #Choices
 	}
 	if list.Contains(["select_one_from_file", "select_multiple_from_file"], type) {
 		file!: _

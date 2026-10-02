@@ -338,6 +338,10 @@ func buildSurveyElement(nl bool, columnHeaders []string, row []string, choiceMap
 			if suffix != "" {
 				return nil, fmt.Errorf("%w: type %q", ErrOrOther, row[idx])
 			}
+			if strings.HasPrefix(list, "${") {
+				element.Elts = append(element.Elts, &ast.Field{Label: ast.NewIdent(header), Value: ast.NewString(qtype)}, &ast.Field{Label: ast.NewIdent("choices_from"), Value: ast.NewString(list)})
+				continue
+			}
 			if isFromFile(qtype) {
 				element.Elts = append(element.Elts, &ast.Field{Label: ast.NewIdent(header), Value: ast.NewString(qtype)}, &ast.Field{Label: ast.NewIdent("file"), Value: ast.NewString(list)})
 				continue

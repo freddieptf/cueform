@@ -68,6 +68,7 @@ func (c *CueForm) toXLSForm() (*xlsForm, error) {
 		choiceColHeaders: make(map[string]struct{}),
 		choiceLists:      make(map[string]choiceList),
 		repeatNames:      make(map[string]cue.Path),
+		inRepeat:         make(map[string]bool),
 	}
 	var settings cue.Value
 	if form := c.anyValue(); form != nil {
@@ -88,6 +89,15 @@ func (c *CueForm) toXLSForm() (*xlsForm, error) {
 		err := state.elementToRows(element, &survey, &choices, topLevel)
 		if err != nil {
 			return nil, err
+		}
+	}
+	for _, ref := range state.references {
+		inRepeat, ok := state.inRepeat[ref.name]
+		if !ok {
+			return nil, fmt.Errorf("%s: no question is named %q", ref.path, ref.name)
+		}
+		if !inRepeat {
+			return nil, fmt.Errorf("%s: %q isn't inside a repeat, so its answers can't be choices", ref.path, ref.name)
 		}
 	}
 
@@ -151,6 +161,11 @@ type encodeState struct {
 	choiceLists map[string]choiceList
 	// repeat names must be unique in the whole form
 	repeatNames map[string]cue.Path
+	// every question name, and whether it is inside a repeat
+	inRepeat    map[string]bool
+	repeatDepth int
+	// choices_from references, checked once every name is known
+	references []reference
 }
 
 type choiceList struct {
@@ -174,11 +189,29 @@ func isFromFile(elementType string) bool {
 	return strings.HasPrefix(elementType, "select_") && strings.HasSuffix(elementType, "_from_file")
 }
 
-// choiceSource returns what follows the type in the type column: the choice list's name, or the
-// attached file a _from_file select reads its choices from
+type reference struct {
+	name string
+	path cue.Path
+}
+
+// choiceSource returns what follows the type in the type column: the choice list's name, the
+// attached file a _from_file select reads, or the ${question} whose repeated answers are the choices
 func choiceSource(val *cue.Value, elementType string) (string, error) {
 	choices := val.LookupPath(cue.ParsePath("choices"))
 	file := val.LookupPath(cue.ParsePath("file"))
+	from := val.LookupPath(cue.ParsePath("choices_from"))
+	if from.Exists() {
+		switch {
+		case elementType == "select_multiple":
+			// pyxform 4.5.0 fails with a KeyError: https://github.com/XLSForm/pyxform/issues/773
+			return "", fmt.Errorf("%s: pyxform doesn't support choices_from on select_multiple", from.Path())
+		case elementType != "select_one" && elementType != "rank":
+			return "", fmt.Errorf("%s: choices_from is only for select_one and rank", from.Path())
+		case choices.Exists():
+			return "", fmt.Errorf("%s: a question can't have both choices and choices_from", from.Path())
+		}
+		return from.String()
+	}
 	switch {
 	case isFromFile(elementType):
 		if choices.Exists() {
@@ -188,6 +221,12 @@ func choiceSource(val *cue.Value, elementType string) (string, error) {
 	case usesChoices(elementType):
 		if file.Exists() {
 			return "", fmt.Errorf("%s: file is only for select_one_from_file and select_multiple_from_file", file.Path())
+		}
+		if !choices.Exists() {
+			if elementType == "select_one" || elementType == "rank" {
+				return "", fmt.Errorf("%s: %s needs choices, or choices_from naming a question in a repeat", val.Path(), elementType)
+			}
+			return "", fmt.Errorf("%s: %s needs choices", val.Path(), elementType)
 		}
 		return choices.LookupPath(cue.ParsePath("list_name")).String()
 	case file.Exists():
@@ -225,6 +264,7 @@ func (e *encodeState) elementToRows(val *cue.Value, rows *[]map[string]string, c
 		return fmt.Errorf("%s: name %q is already used at %s; names must be unique within their group, repeat or survey", val.Path(), name, first)
 	}
 	siblings[name] = val.Path()
+	e.inRepeat[name] = e.repeatDepth > 0
 	if strings.HasSuffix(elementType, "repeat") {
 		if first, ok := e.repeatNames[name]; ok {
 			return fmt.Errorf("%s: repeat name %q is already used at %s; repeat names must be unique in the form", val.Path(), name, first)
@@ -240,12 +280,15 @@ func (e *encodeState) elementToRows(val *cue.Value, rows *[]map[string]string, c
 	if err != nil {
 		return err
 	}
+	if strings.HasPrefix(source, "${") {
+		e.references = append(e.references, reference{name: strings.TrimSuffix(strings.TrimPrefix(source, "${"), "}"), path: val.LookupPath(cue.ParsePath("choices_from")).Path()})
+	}
 	if source != "" {
 		row["type"] += " " + source
 	}
 	*rows = append(*rows, row)
 
-	if usesChoices(elementType) {
+	if usesChoices(elementType) && val.LookupPath(cue.ParsePath("choices")).Exists() {
 		choiceStruct := val.LookupPath(cue.ParsePath("choices"))
 		c, err := choiceStructToRows(&choiceStruct, e.choiceColHeaders)
 		if err != nil {
@@ -271,11 +314,18 @@ func (e *encodeState) elementToRows(val *cue.Value, rows *[]map[string]string, c
 				return err
 			}
 			groupNames := map[string]cue.Path{}
+			isRepeat := strings.HasSuffix(elementType, "repeat")
+			if isRepeat {
+				e.repeatDepth++
+			}
 			for iter.Next() {
 				child := iter.Value()
 				if err := e.elementToRows(&child, rows, choices, groupNames); err != nil {
 					return err
 				}
+			}
+			if isRepeat {
+				e.repeatDepth--
 			}
 		}
 		// keeps the separator, so "begin group" closes with "end group"
@@ -294,7 +344,7 @@ func fieldsToRow(val *cue.Value, keys map[string]struct{}) (map[string]string, e
 	for elIter.Next() {
 		key := elIter.Label()
 		// the choice source is part of the type column, which elementToRows writes
-		if key == "children" || key == "choices" || key == "file" {
+		if key == "children" || key == "choices" || key == "file" || key == "choices_from" {
 			continue
 		}
 		if key == "or_other" {
