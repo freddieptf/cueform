@@ -2,7 +2,9 @@ package xlsform
 
 import "list"
 
-#Translatable: [string]: string
+// one value per language; "label" is not a language, so a choice's {label: ...} details are
+// never read as translations
+#Translatable: {[!="label"]: string}
 
 // a single-language value, or one value per language
 #Text: string | #Translatable
@@ -63,9 +65,18 @@ import "list"
 	...
 }
 
+// a choice is its label, or its label with media: {label: "Apple", image: "apple.png"}
 #Choice: {
-	[string]: #Text
+	[!="filterCategory"]: #Text | #ChoiceDetails
 	filterCategory?: [string]: string
+}
+
+#ChoiceDetails: {
+	label!:       #Text
+	image?:       #Text
+	"big-image"?: #Text
+	audio?:       #Text
+	video?:       #Text
 }
 
 #Choices: {

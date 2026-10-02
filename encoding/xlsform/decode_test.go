@@ -84,7 +84,8 @@ func TestParseXLSForm(t *testing.T) {
 	}
 }
 
-// extra choices sheet columns, which a choice_filter tests, decode as filterCategory
+// extra choices sheet columns, which a choice_filter tests, decode as filterCategory; media makes
+// the choice {label: ..., image: ...}
 func TestBuildChoiceStructFilters(t *testing.T) {
 	columns := []string{"list_name", "name", "label::en", "country", "image"}
 	rows := [][]string{
@@ -103,7 +104,10 @@ func TestBuildChoiceStructFilters(t *testing.T) {
 	list_name: "cities"
 	choices: [
 		{
-			nairobi: en: "Nairobi"
+			nairobi: {
+				label: en: "Nairobi"
+				image: "nairobi.png"
+			}
 			filterCategory: country: "ke"
 		},
 		{
@@ -449,7 +453,8 @@ func TestUnsupportedSheets(t *testing.T) {
 		warning       string
 	}{
 		{"external_choices", nil, "the external_choices sheet is dropped"},
-		{"", []string{"list_name", "name", "label", "image"}, `choices column "image" is dropped`},
+		{"", []string{"list_name", "name", "label", "media::image"}, `choices column "media::image" is dropped`},
+		{"", []string{"list_name", "name", "label", "image"}, ""},
 		{"notes", nil, ""},
 	} {
 		logs.Reset()

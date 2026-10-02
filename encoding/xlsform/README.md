@@ -268,8 +268,13 @@ form_settings: xlsform.#Settings & {
   the `name` inside the element.
 - A group lists its nested elements in `children`.
 - A `select_*` question holds its choice list in `choices`. Each entry
-  in `choices.choices` is a struct whose key is the choice `name` and
-  whose value maps a language to the choice label.
+  in `choices.choices` is a struct whose key is the choice `name`. Its
+  value is the choice label, plain or per language (`{apple: "Apple"}`,
+  `{apple: {en: "Apple"}}`). A choice with media uses the richer form
+  `{apple: {label: "Apple", image: "apple.png", audio: {en: "a_en.mp3"}}}`,
+  where `label` (required), `image`, `big-image`, `audio` and `video` are
+  each plain or per language. `label` isn't a language name, which is
+  what tells the two struct forms apart.
 - Translatable columns (`label`, `hint`, `guidance_hint`,
   `required_message`, `constraint_message`, and the media columns
   `image`, `big-image`, `audio` and `video`) map a language to text. The
@@ -375,7 +380,8 @@ against `#Question`.
 **Choices sheet.** Written only if at least one choice row exists.
 
 - Each `select_*` or `rank` question adds a `list_name`, `name` and
-  `label::lang` row for every choice, in order.
+  label row for every choice, in order, with its media columns
+  (`image`, `audio::en`, …) when it has them.
 - Each list is written once, however many questions use it. pyxform
   rejects a list whose choice names repeat. If two questions use the same
   `list_name` with different choices, encoding fails with
@@ -510,9 +516,10 @@ as `relevant` and `relevance`, fail with `ErrInvalidXLSFormSheet`. In the
 The list is wrapped as `pkg.#Choices & {...}`. Other columns with a
 value become
 the entry's `filterCategory`, as in
-`{nairobi: en: "Nairobi", filterCategory: country: "ke"}`. Media columns
-(`image`, `audio`, `video`, `big-image`, `media::*`) are dropped, with a
-warning for each: `warning: choices column "image" is dropped: choice media isn't supported`.
+`{nairobi: en: "Nairobi", filterCategory: country: "ke"}`. A row with
+media (`image`, `big-image`, `audio`, `video`, plain or `::lang`)
+decodes as `{nairobi: {label: ..., image: ...}}`. pyxform's older
+`media::image` columns are dropped with a warning.
 
 **Survey.**
 
@@ -584,8 +591,6 @@ These describe current behavior. Most are bugs or gaps.
 - **Unusual numbers differ from pyxform.** Numbers below 0.0001 decode
   as `0.00001`, where pyxform writes `1e-05`, and integers beyond 2^53
   lose digits.
-- **Choice media is lost.** The encoder can't write choice `image`,
-  `audio` or `video` columns, and the decoder drops them with a warning.
 - **Choice-list order is not fixed.** Choice lists are built from a
   Go map. That doesn't change the output, because each list is
   attached to the question that uses it, but it matters if you add code

@@ -128,8 +128,8 @@ func parseXLSForm(r io.Reader) (*xlsForm, error) {
 		}
 		form.choiceColumnHeaders = choiceRows[0]
 		for _, header := range form.choiceColumnHeaders {
-			if base, _, _ := strings.Cut(header, "::"); slices.Contains(choiceMediaColumns, base) {
-				log.Printf("warning: choices column %q is dropped: choice media isn't supported", header)
+			if base, _, _ := strings.Cut(header, "::"); base == "media" {
+				log.Printf("warning: choices column %q is dropped: write media as image, audio or video columns", header)
 			}
 		}
 		if len(choiceRows) > 1 {
@@ -298,24 +298,43 @@ func buildChoiceStruct(choiceListName string, columns []string, rows [][]string)
 	for _, row := range rows {
 		choiceEntry := &ast.Field{}
 		filters := ast.NewStruct()
+		// the choice's label and media, by column, each a plain value or a {lang: text} struct
+		texts := map[string]ast.Expr{}
 		for idx, colVal := range row {
-			if colVal != "" && isChoiceFilterColumn(columns[idx]) {
-				filters.Elts = append(filters.Elts, &ast.Field{Label: ast.NewString(columns[idx]), Value: ast.NewString(colVal)})
-			} else if columns[idx] == "name" {
+			col := columns[idx]
+			base, _, _ := strings.Cut(col, "::")
+			switch {
+			case colVal != "" && isChoiceFilterColumn(col):
+				filters.Elts = append(filters.Elts, &ast.Field{Label: ast.NewString(col), Value: ast.NewString(colVal)})
+			case col == "name":
 				choiceEntry.Label = ast.NewIdent(colVal)
-			} else if columns[idx] == "label" && !translated["label"] {
-				choiceEntry.Value = ast.NewString(colVal)
-			} else if columns[idx] == "label" || strings.HasPrefix(columns[idx], "label::") {
-				_, lang, err := columnLang(columns[idx], translated)
+			case base == "label" || (colVal != "" && slices.Contains(choiceTextColumns, base)):
+				if col == base && !translated[base] {
+					texts[base] = ast.NewString(colVal)
+					continue
+				}
+				_, lang, err := columnLang(col, translated)
 				if err != nil {
 					return nil, err
 				}
-				if choiceEntry.Value == nil {
-					choiceEntry.Value = ast.NewStruct()
+				if texts[base] == nil {
+					texts[base] = ast.NewStruct()
 				}
-				label := &ast.Field{Label: &ast.Ident{Name: lang, NamePos: token.Newline.Pos()}, Value: ast.NewString(colVal)}
-				choiceEntry.Value.(*ast.StructLit).Elts = append(choiceEntry.Value.(*ast.StructLit).Elts, label)
+				lit := texts[base].(*ast.StructLit)
+				lit.Elts = append(lit.Elts, &ast.Field{Label: &ast.Ident{Name: lang, NamePos: token.Newline.Pos()}, Value: ast.NewString(colVal)})
 			}
+		}
+		if len(texts) == 1 && texts["label"] != nil {
+			choiceEntry.Value = texts["label"]
+		} else if len(texts) > 0 {
+			// media makes the choice {label: ..., image: ...}
+			details := ast.NewStruct()
+			for _, col := range append([]string{"label"}, choiceTextColumns...) {
+				if texts[col] != nil {
+					details.Elts = append(details.Elts, &ast.Field{Label: ast.NewString(col), Value: texts[col]})
+				}
+			}
+			choiceEntry.Value = details
 		}
 		entry := ast.NewStruct(choiceEntry)
 		if len(filters.Elts) > 0 {

@@ -18,7 +18,7 @@ var (
 	langRe           = regexp.MustCompile(`(?P<column>[\w-]+)::(?P<lang>.+)`)
 	TranslatableCols = []string{"label", "required_message", "constraint_message", "hint", "guidance_hint", "image", "big-image", "audio", "video"}
 	surveyColumns    = []string{"type", "name", "label", "required", "required_message", "relevant", "repeat_count", "constraint", "constraint_message", "hint", "guidance_hint", "image", "big-image", "audio", "video", "choice_filter", "read_only", "calculation", "appearance", "default"}
-	choiceColumns    = []string{"list_name", "name", "label"}
+	choiceColumns    = []string{"list_name", "name", "label", "image", "big-image", "audio", "video"}
 	settingColumns   = []string{"form_title", "form_id", "public_key", "submission_url", "default_language", "style", "version", "instance_name"}
 )
 
@@ -381,6 +381,20 @@ func addTranslations(row map[string]string, keys map[string]struct{}, col string
 	return nil
 }
 
+// writeText writes a #Text value: a plain value to the column col, or {lang: text} to col::lang
+func writeText(row map[string]string, keys map[string]struct{}, col string, val cue.Value) error {
+	if val.Kind() == cue.StructKind {
+		return addTranslations(row, keys, col, val)
+	}
+	text, err := valueToCell(val)
+	if err != nil {
+		return err
+	}
+	row[col] = text
+	keys[col] = struct{}{}
+	return nil
+}
+
 // valueToCell writes strings exactly as they are, bools as yes/no and numbers as plain decimal text
 func valueToCell(val cue.Value) (string, error) {
 	switch val.Kind() {
@@ -446,17 +460,22 @@ func choiceStructToRows(val *cue.Value, keys map[string]struct{}) ([]map[string]
 			element := map[string]string{"list_name": listName, "name": key}
 			keys["list_name"] = struct{}{}
 			keys["name"] = struct{}{}
-			if label := choiceIter.Value(); label.Kind() == cue.StructKind {
-				if err := addTranslations(element, keys, "label", label); err != nil {
+			value := choiceIter.Value()
+			if !value.LookupPath(cue.ParsePath("label")).Exists() {
+				if err := writeText(element, keys, "label", value); err != nil {
 					return nil, err
 				}
 			} else {
-				text, err := valueToCell(label)
+				// {label: ..., image: ...}: each field is its own column
+				fields, err := value.Fields()
 				if err != nil {
 					return nil, err
 				}
-				element["label"] = text
-				keys["label"] = struct{}{}
+				for fields.Next() {
+					if err := writeText(element, keys, fields.Selector().Unquoted(), fields.Value()); err != nil {
+						return nil, err
+					}
+				}
 			}
 			for col, value := range filters {
 				element[col] = value
@@ -468,8 +487,8 @@ func choiceStructToRows(val *cue.Value, keys map[string]struct{}) ([]map[string]
 	return elements, nil
 }
 
-// media columns XLSForm defines for choices, which cueform can't write yet
-var choiceMediaColumns = []string{"image", "big-image", "audio", "video", "media"}
+// media columns a choice can have besides its label, written in a {label: ..., image: ...} choice
+var choiceTextColumns = []string{"image", "big-image", "audio", "video"}
 
 // isChoiceFilterColumn reports whether a choices sheet column is free for choice_filter data,
 // rather than one XLSForm defines for choices (name, labels, media)
@@ -479,7 +498,8 @@ func isChoiceFilterColumn(col string) bool {
 	case "list_name", "name", "label":
 		return false
 	}
-	return !slices.Contains(choiceMediaColumns, base)
+	// media:: is pyxform's older spelling of the media columns
+	return base != "media" && !slices.Contains(choiceTextColumns, base)
 }
 
 func setDefaultColumnWidth(sheet string, f *excelize.File) {

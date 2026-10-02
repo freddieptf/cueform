@@ -276,6 +276,20 @@ func TestEncode(t *testing.T) {
 			file: "testdata/form_choices_from_multiple.cue",
 			err:  "best.choices_from: pyxform doesn't support choices_from on select_multiple",
 		}, {
+			// a choice with media is {label: ..., image: ...}; each field is a plain or ::lang column
+			file: "testdata/form_choice_media.cue",
+			form: &xlsForm{
+				surveyColumnHeaders: []string{"type", "name", "label::en", "label::fr"},
+				survey: [][]string{
+					{"select_one fruit", "fav", "Favourite", "Préféré"},
+				},
+				choiceColumnHeaders: []string{"list_name", "name", "label::en", "label::fr", "image", "audio::en", "audio::fr"},
+				choices: [][]string{
+					{"fruit", "apple", "Apple", "Pomme", "apple.png", "apple_en.mp3", "apple_fr.mp3"},
+					{"fruit", "mango", "Mango", "Mangue"},
+				},
+			},
+		}, {
 			file: "testdata/form_or_other.cue",
 			err:  "favourite.or_other: or_other is not supported",
 		}, {
