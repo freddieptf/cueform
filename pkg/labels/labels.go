@@ -61,7 +61,7 @@ func extractLabels(form, labels *ast.File) (formFile []byte, labelsFile []byte, 
 	if err != nil {
 		return
 	}
-	labelsAstFile, err := buildLabelsFile(labels, elementLabels)
+	labelsAstFile, err := buildLabelsFile(form.PackageName(), labels, elementLabels)
 	if err != nil {
 		return
 	}
@@ -104,7 +104,8 @@ func getLabels(form *ast.File, existing []elementLabel) ([]elementLabel, error) 
 	return labelExtractor.elements, nil
 }
 
-func buildLabelsFile(file *ast.File, labels []elementLabel) (*ast.File, error) {
+// buildLabelsFile writes labels.cue in the form's package, keeping any entries it already has
+func buildLabelsFile(pkg string, file *ast.File, labels []elementLabel) (*ast.File, error) {
 	var labelMapAst *ast.StructLit
 	if file != nil {
 		for _, decl := range file.Decls {
@@ -129,7 +130,10 @@ func buildLabelsFile(file *ast.File, labels []elementLabel) (*ast.File, error) {
 		}
 		labelMapAst.Elts = append(labelMapAst.Elts, &ast.Field{Label: ast.NewIdent(l.id), Value: labelStruct})
 	}
-	decls := []ast.Decl{&ast.Package{Name: ast.NewIdent("main")}, &ast.Field{Label: ast.NewIdent("_labels"), Value: labelMapAst}}
+	decls := []ast.Decl{&ast.Field{Label: ast.NewIdent("_labels"), Value: labelMapAst}}
+	if pkg != "" {
+		decls = append([]ast.Decl{&ast.Package{Name: ast.NewIdent(pkg)}}, decls...)
+	}
 	return &ast.File{Decls: decls}, nil
 }
 

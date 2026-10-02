@@ -212,3 +212,14 @@ func TestExtractLabelsAnyLanguageKey(t *testing.T) {
 		t.Errorf("want %s in\n%s", want, result.Labels)
 	}
 }
+
+// labels.cue is written in the form's package, so the two load together
+func TestExtractLabelsPackage(t *testing.T) {
+	result, err := ExtractLabels("testdata/package/form.cue")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(string(result.Labels), "package survey\n") {
+		t.Errorf("want package survey in\n%s", result.Labels)
+	}
+}

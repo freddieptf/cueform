@@ -10,7 +10,7 @@ the form.
     cd before
     cueform yank labels form.cue
 
-which rewrites `form.cue` in place and writes `labels.cue`. Add `-dry` to print both files instead
+which rewrites `form.cue` in place and writes `labels.cue` in the form's package. Add `-dry` to print both files instead
 of writing them. Running it again on a yanked form changes nothing.
 
 #### What the example shows
@@ -41,5 +41,4 @@ alone, so questions imported from another package keep their translations there.
 
 #### Current limits
 
-- `labels.cue` is always `package main`, so the form must be `package main` too.
 - Translated media, such as `image: {"English (en)": "a.png"}`, is yanked along with the text.
