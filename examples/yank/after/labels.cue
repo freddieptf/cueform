@@ -5,15 +5,15 @@ _labels: {
 		"English (en)": "Household"
 		"Swahili (sw)": "Kaya"
 	}
-	"head_age/label": {
+	"household/head_age/label": {
 		"English (en)": "Age"
 		"Swahili (sw)": "Umri"
 	}
-	"head_age/hint": {
+	"household/head_age/hint": {
 		"English (en)": "In completed years"
 		"Swahili (sw)": "Kwa miaka kamili"
 	}
-	"water/label": {
+	"household/water/label": {
 		"English (en)": "Main source of water"
 		"Swahili (sw)": "Chanzo kikuu cha maji"
 	}

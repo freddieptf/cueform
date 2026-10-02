@@ -104,6 +104,7 @@ func getLabels(defaultLang string, form *ast.File, existing []elementLabel) ([]e
 	// reuse entries already in labels.cue, so running yank again doesn't duplicate them
 	for _, l := range existing {
 		labelExtractor.trackUniq[translationKey(l.labels)] = l.id
+		labelExtractor.usedIDs[l.id] = true
 	}
 	for _, el := range form.Decls {
 		switch v := el.(type) {
@@ -116,7 +117,7 @@ func getLabels(defaultLang string, form *ast.File, existing []elementLabel) ([]e
 			if strings.HasPrefix(name, "#") || strings.HasPrefix(name, "_#") || strings.HasPrefix(name, "_") {
 				continue
 			}
-			err = labelExtractor.extractLabels(defaultLang, v.Value.(*ast.BinaryExpr))
+			err = labelExtractor.extractLabels(defaultLang, v.Value.(*ast.BinaryExpr), "")
 			if err != nil {
 				return nil, err
 			}
@@ -159,6 +160,7 @@ func buildLabelsFile(file *ast.File, labels []elementLabel) (*ast.File, error) {
 type extractor struct {
 	// entry id by translationKey, so identical translations share one entry
 	trackUniq map[string]string
+	usedIDs   map[string]bool
 	elements  []elementLabel
 }
 
@@ -167,8 +169,14 @@ type extractor struct {
 func (e *extractor) reference(labels elementLabel, id string) ast.Expr {
 	key := translationKey(labels.labels)
 	if _, exists := e.trackUniq[key]; !exists {
-		labels.id = id
-		e.trackUniq[key] = id
+		// an id already used for other translations gets a numbered suffix
+		unique := id
+		for n := 2; e.usedIDs[unique]; n++ {
+			unique = fmt.Sprintf("%s-%d", id, n)
+		}
+		labels.id = unique
+		e.trackUniq[key] = unique
+		e.usedIDs[unique] = true
 		e.elements = append(e.elements, labels)
 	}
 	return &ast.SelectorExpr{X: ast.NewIdent("_labels"), Sel: ast.NewString(e.trackUniq[key])}
@@ -237,15 +245,21 @@ func existingLabels(file *ast.File) []elementLabel {
 }
 
 func newExtractor() *extractor {
-	return &extractor{trackUniq: make(map[string]string), elements: []elementLabel{}}
+	return &extractor{trackUniq: make(map[string]string), usedIDs: make(map[string]bool), elements: []elementLabel{}}
 }
 
-func (e *extractor) extractLabels(defaultLang string, node *ast.BinaryExpr) error {
+// extractLabels yanks an element's translations. path is the names of the groups it is in, so ids
+// such as "mother/age/label" stay distinct when names repeat in different groups.
+func (e *extractor) extractLabels(defaultLang string, node *ast.BinaryExpr, path string) error {
 	elStruct := node.Y.(*ast.StructLit)
 	elName, err := getElementName(elStruct)
 	if err != nil {
 		log.Println(err)
 		return nil
+	}
+	elPath := elName
+	if path != "" {
+		elPath = path + "/" + elName
 	}
 	for _, f := range elStruct.Elts {
 		name, _, err := ast.LabelName(f.(*ast.Field).Label)
@@ -271,11 +285,12 @@ func (e *extractor) extractLabels(defaultLang string, node *ast.BinaryExpr) erro
 			if _, err := getDefaultText(defaultLang, labels); err != nil {
 				return err
 			}
-			f.(*ast.Field).Value = e.reference(labels, fmt.Sprintf("%s/%s", elName, name))
+			f.(*ast.Field).Value = e.reference(labels, fmt.Sprintf("%s/%s", elPath, name))
 		} else if name == "choices" {
 			switch v := f.(*ast.Field).Value.(type) {
 			case *ast.BinaryExpr:
-				err = e.extractLabels(defaultLang, v)
+				// choice lists are named across the whole form, so their ids are "list/choice"
+				err = e.extractLabels(defaultLang, v, "")
 				if err != nil {
 					return err
 				}
@@ -319,7 +334,7 @@ func (e *extractor) extractLabels(defaultLang string, node *ast.BinaryExpr) erro
 		} else if name == "children" {
 			children := f.(*ast.Field).Value.(*ast.ListLit)
 			for _, child := range children.Elts {
-				err := e.extractLabels(defaultLang, child.(*ast.BinaryExpr))
+				err := e.extractLabels(defaultLang, child.(*ast.BinaryExpr), elPath)
 				if err != nil {
 					return err
 				}

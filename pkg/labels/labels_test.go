@@ -64,14 +64,14 @@ func TestExtractLabels(t *testing.T) {
 					},
 				},
 				{
-					id: "age/label",
+					id: "father/age/label",
 					labels: []label{
 						{lang: "English (en)", langCode: "en", text: "How old is your father?"},
 						{lang: "Afrikaans (af)", langCode: "af", text: "Hoe oud is jou pa?"},
 					},
 				},
 				{
-					id: "home_or_away/label",
+					id: "father/home_or_away/label",
 					labels: []label{
 						{lang: "English (en)", langCode: "en", text: "Is he home?"},
 						{lang: "Afrikaans (af)", langCode: "af", text: "Is hy tuis?"},
@@ -146,5 +146,22 @@ func TestExtractLabelsDedupe(t *testing.T) {
 	}
 	if n := strings.Count(labels, "Kijiji"); n != 1 {
 		t.Errorf("labels: the existing entry appears %d times\n%s", n, labels)
+	}
+}
+
+// ids are paths, so repeated names in different groups don't collide; a taken id gets a suffix
+func TestExtractLabelsIDs(t *testing.T) {
+	result, err := ExtractLabels("testdata/collision/form.cue")
+	if err != nil {
+		t.Fatal(err)
+	}
+	form := string(result.Form)
+	for _, want := range []string{`_labels."mother/age/label"`, `_labels."father/age/label"`, `_labels."village/label-2"`} {
+		if !strings.Contains(form, want) {
+			t.Errorf("form: want %s in\n%s", want, form)
+		}
+	}
+	if !strings.Contains(string(result.Labels), `"village/label": "English (en)": "Village"`) {
+		t.Errorf("labels: the existing entry changed\n%s", result.Labels)
 	}
 }

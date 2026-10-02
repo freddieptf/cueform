@@ -2,7 +2,8 @@
 
 `cueform yank labels` moves a form's translated text out of the form and into a `labels.cue`
 file next to it. The form keeps its structure, and each translation becomes a reference such as
-`_labels."head_age/label"`. Translators can then work in one file without touching the form.
+`_labels."household/head_age/label"`. Translators can then work in one file without touching
+the form.
 
 `before/form.cue` is a form as you would write it. `after/` is the same form after
 
@@ -15,10 +16,13 @@ of writing them. Running it again on a yanked form changes nothing.
 #### What the example shows
 
 - **Translated values move to `labels.cue`.** Each `{"English (en)": ..., "Swahili (sw)": ...}`
-  label and hint is replaced by a reference. Entries are keyed by element and column
-  (`"head_age/hint"`), or by list and choice for choices (`"water_sources/tap"`).
+  label and hint is replaced by a reference. Entries are keyed by the element's path and the
+  column (`"household/head_age/hint"`), so questions with the same name in different groups
+  get different entries. Choices are keyed by list and choice (`"water_sources/tap"`). If a key
+  is already taken by other text, for example in an existing `labels.cue`, it gets a numbered
+  suffix such as `-2`.
 - **Repeated text is stored once.** `member_age` has the same translations as `head_age`, so
-  both refer to `_labels."head_age/label"`. Values share an entry only when every language
+  both refer to `_labels."household/head_age/label"`. Values share an entry only when every language
   matches, and entries already in `labels.cue` are reused when you run yank again.
 - **A choice with media keeps its media.** For `{well: {label: ..., image: "well.png"}}`, only
   the label moves.

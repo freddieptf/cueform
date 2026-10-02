@@ -19,13 +19,13 @@ household: xlsform.#Group & {
 		xlsform.#Question & {
 			type:  "integer"
 			name:  "head_age"
-			label: _labels."head_age/label"
-			hint:  _labels."head_age/hint"
+			label: _labels."household/head_age/label"
+			hint:  _labels."household/head_age/hint"
 		},
 		xlsform.#Question & {
 			type:  "select_one"
 			name:  "water"
-			label: _labels."water/label"
+			label: _labels."household/water/label"
 			choices: xlsform.#Choices & {
 				list_name: "water_sources"
 				choices: [
@@ -50,7 +50,7 @@ member: xlsform.#Group & {
 		xlsform.#Question & {
 			type:  "integer"
 			name:  "member_age"
-			label: _labels."head_age/label"
+			label: _labels."household/head_age/label"
 		},
 	]
 }
