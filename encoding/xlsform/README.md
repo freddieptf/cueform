@@ -418,6 +418,18 @@ A translatable column's `col::lang` headers sit where `col` would be,
 sorted by language. Any other columns are added at the end in
 alphabetical order. Only columns that some element uses are written.
 
+**Languages.** The XLSForm spec recommends naming each language with a
+two-letter code after it, `Name (code)`, so apps can match the form's
+language to the device's. The encoder logs one warning naming every
+language on the survey and choices sheets that isn't written that way:
+a name, one space, and a two-letter IANA code in brackets, such as
+`English (en)`. Names such as `en`, `English`, `Dutch(nl)` or
+`Luo (luo)` (a three-letter code) are flagged. `default`, pyxform's name
+for a plain column next to translated ones, isn't. The two-letter codes
+come from the IANA registry, as copied by pyxform 4.5.0 into
+`iana_subtags/`. This is stricter than pyxform, which also accepts
+three-letter codes and skips names shorter than three characters.
+
 **Workbook.** The default `Sheet1` is deleted. Column width is set to 30
 for every column, and to 50 for column C of the survey sheet (usually
 the first label column). Each sheet's dimension is set to the range

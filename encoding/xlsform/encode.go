@@ -3,6 +3,7 @@ package xlsform
 import (
 	"bytes"
 	"fmt"
+	"log"
 	"reflect"
 	"regexp"
 	"slices"
@@ -145,6 +146,10 @@ func (c *CueForm) toXLSForm() (*xlsForm, error) {
 		}
 		form.settingColumnHeaders = orderedSettingColHeaders
 		form.settings = [][]string{settings}
+	}
+
+	if warning := languageWarning(formLanguages(form.surveyColumnHeaders, form.choiceColumnHeaders)); warning != "" {
+		log.Println(warning)
 	}
 
 	return form, nil
