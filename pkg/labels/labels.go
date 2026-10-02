@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strings"
 
@@ -15,14 +14,9 @@ import (
 	"github.com/freddieptf/cueform/encoding/xlsform"
 )
 
-var (
-	langCodeRe = regexp.MustCompile(`(?P<lang>\w+)\s*\((?P<code>\w+)\)`)
-)
-
 type label struct {
-	text     string
-	lang     string
-	langCode string
+	text string
+	lang string
 }
 
 type elementLabel struct {
@@ -263,10 +257,7 @@ func (e *extractor) extractLabels(node ast.Expr, path string) error {
 		}
 		switch {
 		case xlsform.IsTranslatableColumn(name):
-			labels, ok, err := translations(f.Value)
-			if err != nil {
-				return err
-			}
+			labels, ok := translations(f.Value)
 			if !ok {
 				continue
 			}
@@ -325,10 +316,7 @@ func (e *extractor) extractChoices(node ast.Expr) error {
 						target = labelField
 					}
 				}
-				labels, ok, err := translations(target.Value)
-				if err != nil {
-					return err
-				}
+				labels, ok := translations(target.Value)
 				if !ok {
 					continue
 				}
@@ -395,24 +383,24 @@ func elementsIn(expr ast.Expr) []ast.Expr {
 
 // translations reads a {lang: "text"} struct literal; ok is false for a plain value or anything
 // that isn't literal text, which is left in the form
-func translations(expr ast.Expr) (elementLabel, bool, error) {
+func translations(expr ast.Expr) (elementLabel, bool) {
 	lit, ok := expr.(*ast.StructLit)
 	if !ok || len(lit.Elts) == 0 {
-		return elementLabel{}, false, nil
+		return elementLabel{}, false
 	}
 	labels := elementLabel{labels: []label{}}
 	for _, el := range lit.Elts {
 		f, ok := el.(*ast.Field)
 		if !ok {
-			return elementLabel{}, false, nil
+			return elementLabel{}, false
 		}
-		l, ok, err := getLabelFromField(f)
-		if err != nil || !ok {
-			return elementLabel{}, false, err
+		l, ok := getLabelFromField(f)
+		if !ok {
+			return elementLabel{}, false
 		}
 		labels.labels = append(labels.labels, l)
 	}
-	return labels, true, nil
+	return labels, true
 }
 
 // choiceLabelField returns the label field of a {label: ..., image: ...} choice, or nil
@@ -447,24 +435,20 @@ func getElementName(el *ast.StructLit) string {
 	return ""
 }
 
-// getLabelFromField reads one translation; ok is false unless it is literal text, and a language
-// key not written as "Name (code)" is an error
-func getLabelFromField(field *ast.Field) (label, bool, error) {
+// getLabelFromField reads one translation; ok is false unless it is literal text. Any key is a
+// language, as it is for the encoder.
+func getLabelFromField(field *ast.Field) (label, bool) {
 	lang, _, err := ast.LabelName(field.Label)
 	if err != nil {
-		return label{}, false, nil
+		return label{}, false
 	}
 	lit, ok := field.Value.(*ast.BasicLit)
 	if !ok || lit.Kind != token.STRING {
-		return label{}, false, nil
+		return label{}, false
 	}
 	text, err := literal.Unquote(lit.Value)
 	if err != nil {
-		return label{}, false, nil
+		return label{}, false
 	}
-	match := langCodeRe.FindStringSubmatch(lang)
-	if len(match) != 3 {
-		return label{}, false, xlsform.ErrInvalidLabel
-	}
-	return label{lang: lang, langCode: match[2], text: text}, true, nil
+	return label{lang: lang, text: text}, true
 }

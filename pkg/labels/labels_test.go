@@ -52,43 +52,43 @@ func TestExtractLabels(t *testing.T) {
 				{
 					id: "family_name/label",
 					labels: []label{
-						{lang: "English (en)", langCode: "en", text: "What's your family name?"},
-						{lang: "Afrikaans (af)", langCode: "af", text: "Wat is jou familienaam?"},
+						{lang: "English (en)", text: "What's your family name?"},
+						{lang: "Afrikaans (af)", text: "Wat is jou familienaam?"},
 					},
 				},
 				{
 					id: "father/label",
 					labels: []label{
-						{lang: "English (en)", langCode: "en", text: "Father"},
-						{lang: "Afrikaans (af)", langCode: "af", text: "Pa"},
+						{lang: "English (en)", text: "Father"},
+						{lang: "Afrikaans (af)", text: "Pa"},
 					},
 				},
 				{
 					id: "father/age/label",
 					labels: []label{
-						{lang: "English (en)", langCode: "en", text: "How old is your father?"},
-						{lang: "Afrikaans (af)", langCode: "af", text: "Hoe oud is jou pa?"},
+						{lang: "English (en)", text: "How old is your father?"},
+						{lang: "Afrikaans (af)", text: "Hoe oud is jou pa?"},
 					},
 				},
 				{
 					id: "father/home_or_away/label",
 					labels: []label{
-						{lang: "English (en)", langCode: "en", text: "Is he home?"},
-						{lang: "Afrikaans (af)", langCode: "af", text: "Is hy tuis?"},
+						{lang: "English (en)", text: "Is he home?"},
+						{lang: "Afrikaans (af)", text: "Is hy tuis?"},
 					},
 				},
 				{
 					id: "yes_no/yes",
 					labels: []label{
-						{lang: "English (en)", langCode: "en", text: "Yes"},
-						{lang: "Afrikaans (af)", langCode: "af", text: "Ja"},
+						{lang: "English (en)", text: "Yes"},
+						{lang: "Afrikaans (af)", text: "Ja"},
 					},
 				},
 				{
 					id: "yes_no/no",
 					labels: []label{
-						{lang: "English (en)", langCode: "en", text: "No"},
-						{lang: "Afrikaans (af)", langCode: "af", text: "Nee"},
+						{lang: "English (en)", text: "No"},
+						{lang: "Afrikaans (af)", text: "Nee"},
 					},
 				},
 			},
@@ -196,5 +196,19 @@ func TestExtractLabelsNoSettings(t *testing.T) {
 	}
 	if want := `label: _labels."q/label"`; !strings.Contains(string(result.Form), want) {
 		t.Errorf("want %s in\n%s", want, result.Form)
+	}
+}
+
+// any key is a language, not only "Name (code)"
+func TestExtractLabelsAnyLanguageKey(t *testing.T) {
+	result, err := ExtractLabels("testdata/short_lang/form.cue")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := `label: _labels."q/label"`; !strings.Contains(string(result.Form), want) {
+		t.Errorf("want %s in\n%s", want, result.Form)
+	}
+	if want := `sw: "Swali"`; !strings.Contains(string(result.Labels), want) {
+		t.Errorf("want %s in\n%s", want, result.Labels)
 	}
 }
