@@ -41,12 +41,14 @@ var (
 	ErrInvalidXLSForm      = errors.New("xlsform structure is incorrect")
 	ErrInvalidXLSFormSheet = errors.New("found xlsform sheet missing a required column")
 	ErrInvalidLabel        = errors.New("found translatable column with no language code")
+	ErrUnsupportedSheet    = errors.New("found a sheet cueform doesn't support")
 )
 ```
 
 The decoder returns these errors. `ErrInvalidXLSForm` means a required
 sheet is missing or empty. `ErrInvalidXLSFormSheet` means a sheet is
-missing a required column. `ErrInvalidLabel` means a translatable
+missing a required column. `ErrUnsupportedSheet` means the workbook has
+a sheet cueform doesn't support, such as `entities`. `ErrInvalidLabel` means a translatable
 column header is malformed, such as `label:en` with a single colon.
 `GetLangFromCol` wraps `ErrInvalidLabel`, so check for it with
 `errors.Is`.
@@ -452,6 +454,12 @@ a Python with `pyxform==4.5.0` installed, and
 that `cells.json` is current, and that decoding and encoding again gives
 a workbook pyxform reads the same way.
 
+**Unsupported sheets.** pyxform reads six sheets: `survey`, `choices`,
+`settings`, `entities`, `external_choices` and `osm`. An `entities`
+sheet fails with `ErrUnsupportedSheet`, because cueform doesn't support
+entities. `external_choices` and `osm` are dropped with a warning. Any
+other sheet is ignored without a warning, as pyxform ignores it too.
+
 **Names and aliases.** As in pyxform 4.5.0, sheet names are matched
 case-insensitively (`Survey` is the survey sheet). A column header's
 name (before any `::lang`) is turned into snake_case, so `Label`,
@@ -503,7 +511,8 @@ The list is wrapped as `pkg.#Choices & {...}`. Other columns with a
 value become
 the entry's `filterCategory`, as in
 `{nairobi: en: "Nairobi", filterCategory: country: "ke"}`. Media columns
-(`image`, `audio`, `video`, `big-image`, `media::*`) are dropped.
+(`image`, `audio`, `video`, `big-image`, `media::*`) are dropped, with a
+warning for each: `warning: choices column "image" is dropped: choice media isn't supported`.
 
 **Survey.**
 
@@ -570,7 +579,7 @@ These describe current behavior. Most are bugs or gaps.
   as `0.00001`, where pyxform writes `1e-05`, and integers beyond 2^53
   lose digits.
 - **Choice media is lost.** The encoder can't write choice `image`,
-  `audio` or `video` columns, and the decoder drops them.
+  `audio` or `video` columns, and the decoder drops them with a warning.
 - **Possible panics.** The decoder dereferences values without
   checking them first, so these inputs can panic:
   - a top-level element with no `name` column value;

@@ -468,15 +468,18 @@ func choiceStructToRows(val *cue.Value, keys map[string]struct{}) ([]map[string]
 	return elements, nil
 }
 
+// media columns XLSForm defines for choices, which cueform can't write yet
+var choiceMediaColumns = []string{"image", "big-image", "audio", "video", "media"}
+
 // isChoiceFilterColumn reports whether a choices sheet column is free for choice_filter data,
 // rather than one XLSForm defines for choices (name, labels, media)
 func isChoiceFilterColumn(col string) bool {
 	base, _, _ := strings.Cut(col, "::")
 	switch base {
-	case "list_name", "name", "label", "image", "big-image", "audio", "video", "media":
+	case "list_name", "name", "label":
 		return false
 	}
-	return true
+	return !slices.Contains(choiceMediaColumns, base)
 }
 
 func setDefaultColumnWidth(sheet string, f *excelize.File) {

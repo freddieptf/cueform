@@ -20,6 +20,7 @@ var (
 	ErrInvalidXLSForm      = errors.New("xlsform structure is incorrect")
 	ErrInvalidXLSFormSheet = errors.New("found xlsform sheet missing a required column")
 	ErrInvalidLabel        = errors.New("found translatable column with no language code")
+	ErrUnsupportedSheet    = errors.New("found a sheet cueform doesn't support")
 	// pyxform adds the "other" choice to the shared list, so every question using it shows it
 	ErrOrOther = errors.New(`or_other is not supported; add an "other" choice and a text question with relevant, as the XLSForm spec recommends`)
 
@@ -90,6 +91,9 @@ func parseXLSForm(r io.Reader) (*xlsForm, error) {
 			log.Println(err)
 		}
 	}()
+	if err := checkSheets(f); err != nil {
+		return nil, err
+	}
 	form := xlsForm{}
 	cells := newCellReader(f)
 	if surveyRows, err := sheetRows(f, cells, surveySheetName); err != nil {
@@ -122,6 +126,11 @@ func parseXLSForm(r io.Reader) (*xlsForm, error) {
 			return nil, err
 		}
 		form.choiceColumnHeaders = choiceRows[0]
+		for _, header := range form.choiceColumnHeaders {
+			if base, _, _ := strings.Cut(header, "::"); slices.Contains(choiceMediaColumns, base) {
+				log.Printf("warning: choices column %q is dropped: choice media isn't supported", header)
+			}
+		}
 		if len(choiceRows) > 1 {
 			form.choices = choiceRows[1:]
 		}
@@ -142,6 +151,20 @@ func parseXLSForm(r io.Reader) (*xlsForm, error) {
 		}
 	}
 	return &form, nil
+}
+
+// checkSheets rejects or warns about sheets pyxform reads but cueform doesn't. Other sheets are
+// ignored by pyxform too, so nothing is lost.
+func checkSheets(f *excelize.File) error {
+	for _, sheet := range f.GetSheetList() {
+		switch strings.ToLower(sheet) {
+		case "entities":
+			return fmt.Errorf("%w: %s", ErrUnsupportedSheet, sheet)
+		case "external_choices", "osm":
+			log.Printf("warning: the %s sheet is dropped: it isn't supported", sheet)
+		}
+	}
+	return nil
 }
 
 // sheetRows reads a sheet, found case-insensitively as pyxform does, with its header row renamed

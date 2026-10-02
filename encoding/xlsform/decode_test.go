@@ -1,7 +1,9 @@
 package xlsform
 
 import (
+	"bytes"
 	"errors"
+	"log"
 	"os"
 	"reflect"
 	"strings"
@@ -9,6 +11,7 @@ import (
 
 	"cuelang.org/go/cue/ast"
 	"cuelang.org/go/cue/format"
+	"github.com/xuri/excelize/v2"
 )
 
 func TestParseXLSForm(t *testing.T) {
@@ -405,6 +408,58 @@ func TestValidXLSFormSheetColumns(t *testing.T) {
 		}
 		if !errors.Is(err, ErrInvalidXLSFormSheet) || !strings.Contains(err.Error(), "has no "+tc.missing+" column") {
 			t.Errorf("%q: have %v, want a missing %s column", tc.headers, err, tc.missing)
+		}
+	}
+}
+
+// sheets and columns pyxform reads but cueform doesn't are an error (entities) or a warning, so
+// an import never loses them silently; sheets pyxform ignores are ignored here too
+func TestUnsupportedSheets(t *testing.T) {
+	workbook := func(extra string, choiceHeaders []string) *bytes.Buffer {
+		f := excelize.NewFile()
+		f.SetSheetName("Sheet1", "survey")
+		f.SetSheetRow("survey", "A1", &[]string{"type", "name", "label"})
+		f.SetSheetRow("survey", "A2", &[]string{"note", "intro", "Hello"})
+		if choiceHeaders != nil {
+			f.NewSheet("choices")
+			f.SetSheetRow("choices", "A1", &choiceHeaders)
+			f.SetSheetRow("choices", "A2", &[]string{"fruit", "apple", "Apple", "apple.png"})
+		}
+		if extra != "" {
+			f.NewSheet(extra)
+			f.SetSheetRow(extra, "A1", &[]string{"list_name", "label"})
+		}
+		buf, err := f.WriteToBuffer()
+		if err != nil {
+			t.Fatal(err)
+		}
+		return buf
+	}
+	var logs bytes.Buffer
+	log.SetOutput(&logs)
+	t.Cleanup(func() { log.SetOutput(os.Stderr) })
+
+	if _, err := parseXLSForm(workbook("Entities", nil)); !errors.Is(err, ErrUnsupportedSheet) {
+		t.Errorf("entities: have %v, want %v", err, ErrUnsupportedSheet)
+	}
+	for _, tc := range []struct {
+		extra         string
+		choiceHeaders []string
+		warning       string
+	}{
+		{"external_choices", nil, "the external_choices sheet is dropped"},
+		{"", []string{"list_name", "name", "label", "image"}, `choices column "image" is dropped`},
+		{"notes", nil, ""},
+	} {
+		logs.Reset()
+		if _, err := parseXLSForm(workbook(tc.extra, tc.choiceHeaders)); err != nil {
+			t.Fatal(err)
+		}
+		if tc.warning == "" && strings.Contains(logs.String(), "warning") {
+			t.Errorf("%s: unexpected warning %q", tc.extra, logs.String())
+		}
+		if tc.warning != "" && !strings.Contains(logs.String(), tc.warning) {
+			t.Errorf("no warning %q in %q", tc.warning, logs.String())
 		}
 	}
 }
