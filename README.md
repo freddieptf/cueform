@@ -12,8 +12,8 @@ This repo provides a tool that converts CUE to XLSForm. It has full compatibilit
 
     go install github.com/freddieptf/cueform/cmd/cueform@latest
 
-You also need the [`cue` command](https://cuelang.org/docs/introduction/installation/) to manage
-the schema dependency.
+You also need the [`cue` command](https://cuelang.org/docs/introduction/installation/), v0.16 or
+newer, to manage the schema dependency.
 
 #### Usage
 
