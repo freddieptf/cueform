@@ -452,6 +452,36 @@ a Python with `pyxform==4.5.0` installed, and
 that `cells.json` is current, and that decoding and encoding again gives
 a workbook pyxform reads the same way.
 
+**Names and aliases.** As in pyxform 4.5.0, sheet names are matched
+case-insensitively (`Survey` is the survey sheet). A column header's
+name (before any `::lang`) is turned into snake_case, so `Label`,
+`Choice Filter` and `List Name` become `label`, `choice_filter` and
+`list_name`. pyxform's older aliases are renamed too:
+
+| sheet | alias | becomes |
+|---|---|---|
+| survey | `relevance` | `relevant` |
+| survey | `readonly` | `read_only` |
+| survey | `calculate` | `calculation` |
+| survey | `caption` | `label` |
+| survey | `command` | `type` |
+| survey | `tag`, `value` | `name` |
+| survey | `count`, `jr:count` | `repeat_count` |
+| survey | `constraining_message` | `constraint_message` |
+| survey | `requiredmsg` | `required_message` |
+| choices | `caption` | `label` |
+| choices | `value` | `name` |
+| settings | `set_form_title`, `set_form_id` | `form_title`, `form_id` |
+
+The language after `::` keeps its case. Columns that aren't known are
+kept exactly as written, because `choice_filter` expressions refer to
+choices columns by name. Two headers that become the same column, such
+as `relevant` and `relevance`, fail with `ErrInvalidXLSFormSheet`. In the
+`type` column, pyxform's older select spellings become the usual ones:
+`select one fruit` → `select_one fruit`, `select all that apply fruit`
+→ `select_multiple fruit`, and `select one from file cities.csv` →
+`select_one_from_file cities.csv`.
+
 **Sheet validation.**
 
 - The `survey` sheet is required. Its header row must contain columns

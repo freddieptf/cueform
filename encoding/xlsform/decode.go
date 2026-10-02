@@ -92,7 +92,7 @@ func parseXLSForm(r io.Reader) (*xlsForm, error) {
 	}()
 	form := xlsForm{}
 	cells := newCellReader(f)
-	if surveyRows, err := cells.rows(surveySheetName); err != nil {
+	if surveyRows, err := sheetRows(f, cells, surveySheetName); err != nil {
 		return nil, fmt.Errorf("%v: %w", err, ErrInvalidXLSForm)
 	} else {
 		if err := validXLSFormSheet(surveySheetName, surveyRows); err != nil {
@@ -102,8 +102,15 @@ func parseXLSForm(r io.Reader) (*xlsForm, error) {
 		if len(surveyRows) > 1 {
 			form.survey = surveyRows[1:]
 		}
+		if ti := slices.Index(form.surveyColumnHeaders, "type"); ti >= 0 {
+			for _, row := range form.survey {
+				if ti < len(row) {
+					row[ti] = canonicalSelectType(row[ti])
+				}
+			}
+		}
 	}
-	if choiceRows, err := cells.rows(choiceSheetName); err != nil {
+	if choiceRows, err := sheetRows(f, cells, choiceSheetName); err != nil {
 		if !errors.Is(err, excelize.ErrSheetNotExist{SheetName: choiceSheetName}) {
 			return nil, err
 		}
@@ -119,7 +126,7 @@ func parseXLSForm(r io.Reader) (*xlsForm, error) {
 			form.choices = choiceRows[1:]
 		}
 	}
-	if settingsRows, err := cells.rows(settingsSheetName); err != nil {
+	if settingsRows, err := sheetRows(f, cells, settingsSheetName); err != nil {
 		if !errors.Is(err, excelize.ErrSheetNotExist{SheetName: settingsSheetName}) {
 			return nil, err
 		}
@@ -135,6 +142,28 @@ func parseXLSForm(r io.Reader) (*xlsForm, error) {
 		}
 	}
 	return &form, nil
+}
+
+// sheetRows reads a sheet, found case-insensitively as pyxform does, with its header row renamed
+// to cueform's column names
+func sheetRows(f *excelize.File, cells *cellReader, sheet string) ([][]string, error) {
+	name := sheet
+	for _, s := range f.GetSheetList() {
+		if strings.EqualFold(s, sheet) {
+			name = s
+			break
+		}
+	}
+	rows, err := cells.rows(name)
+	if err != nil {
+		return nil, err
+	}
+	if len(rows) > 0 {
+		if rows[0], err = canonicalHeaders(sheet, rows[0]); err != nil {
+			return nil, err
+		}
+	}
+	return rows, nil
 }
 
 // validXLSFormSheet validates that the work sheet has the required columns
