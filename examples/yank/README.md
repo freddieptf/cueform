@@ -34,6 +34,11 @@ The encoder loads `labels.cue` with the form, so both versions encode to the sam
     cueform encode -out /tmp examples/yank/before/form.cue
     cueform encode -out /tmp examples/yank/after/form.cue
 
+Only struct literals are yanked, wherever they are: `#Question & {...}`, a plain `{...}`, an
+element inside `list.Concat`, or a helper such as `_tree_name: #Question & {...}` or
+`_yes_no: #Choices & {...}` that the form refers to by name. References themselves are left
+alone, so questions imported from another package keep their translations there.
+
 #### Current limits
 
 - The form needs `form_settings` with `default_language`, and every translated value needs a
@@ -42,4 +47,3 @@ The encoder loads `labels.cue` with the form, so both versions encode to the sam
   fails with `ErrInvalidLabel`.
 - `labels.cue` is always `package main`, so the form must be `package main` too.
 - Translated media, such as `image: {"English (en)": "a.png"}`, is yanked along with the text.
-- It logs `missing name` for `form_settings`, which has no `name`; this is harmless.

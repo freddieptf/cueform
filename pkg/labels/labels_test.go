@@ -165,3 +165,25 @@ func TestExtractLabelsIDs(t *testing.T) {
 		t.Errorf("labels: the existing entry changed\n%s", result.Labels)
 	}
 }
+
+// elements written as plain structs, inside list.Concat, or defined once and referenced are all
+// yanked where they are defined; references themselves are left alone
+func TestExtractLabelsShapes(t *testing.T) {
+	result, err := ExtractLabels("testdata/shapes/form.cue")
+	if err != nil {
+		t.Fatal(err)
+	}
+	form := string(result.Form)
+	for _, want := range []string{
+		`name: "tree_name", label: _labels."tree_name/label"`,
+		`{yes: _labels."yes_no/yes"}`,
+		`name: "height", label: _labels."trees/height/label"`,
+		`label: _labels."trees/label"`,
+		"choices: _yes_no",
+		"[_tree_name]",
+	} {
+		if !strings.Contains(form, want) {
+			t.Errorf("want %s in\n%s", want, form)
+		}
+	}
+}

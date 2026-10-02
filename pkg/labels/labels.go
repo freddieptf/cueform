@@ -3,7 +3,6 @@ package labels
 import (
 	"errors"
 	"fmt"
-	"log"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -13,6 +12,7 @@ import (
 	"cuelang.org/go/cue/ast"
 	"cuelang.org/go/cue/format"
 	"cuelang.org/go/cue/literal"
+	"cuelang.org/go/cue/token"
 	"github.com/freddieptf/cueform/encoding/xlsform"
 )
 
@@ -107,22 +107,21 @@ func getLabels(defaultLang string, form *ast.File, existing []elementLabel) ([]e
 		labelExtractor.usedIDs[l.id] = true
 	}
 	for _, el := range form.Decls {
-		switch v := el.(type) {
-		case *ast.Field:
-			name, _, err := ast.LabelName(v.Label)
-			if err != nil {
-				return nil, err
-			}
-			// naaaaah
-			if strings.HasPrefix(name, "#") || strings.HasPrefix(name, "_#") || strings.HasPrefix(name, "_") {
-				continue
-			}
-			err = labelExtractor.extractLabels(defaultLang, v.Value.(*ast.BinaryExpr), "")
-			if err != nil {
-				return nil, err
-			}
-		default:
-			// something something
+		field, ok := el.(*ast.Field)
+		if !ok {
+			continue
+		}
+		name, _, err := ast.LabelName(field.Label)
+		if err != nil {
+			return nil, err
+		}
+		// definitions are schemas, not elements; hidden fields such as helper questions are yanked
+		// where they are defined, since references to them are skipped
+		if strings.HasPrefix(name, "#") || strings.HasPrefix(name, "_#") || name == "_labels" {
+			continue
+		}
+		if err := labelExtractor.extractLabels(defaultLang, field.Value, ""); err != nil {
+			return nil, err
 		}
 	}
 	return labelExtractor.elements, nil
@@ -249,99 +248,194 @@ func newExtractor() *extractor {
 }
 
 // extractLabels yanks an element's translations. path is the names of the groups it is in, so ids
-// such as "mother/age/label" stay distinct when names repeat in different groups.
-func (e *extractor) extractLabels(defaultLang string, node *ast.BinaryExpr, path string) error {
-	elStruct := node.Y.(*ast.StructLit)
-	elName, err := getElementName(elStruct)
-	if err != nil {
-		log.Println(err)
+// such as "mother/age/label" stay distinct when names repeat in different groups. Values that
+// aren't struct literals, such as references to questions defined elsewhere, are skipped: their
+// translations live where they are defined.
+func (e *extractor) extractLabels(defaultLang string, node ast.Expr, path string) error {
+	elStruct := elementStruct(node)
+	if elStruct == nil {
+		return nil
+	}
+	// a choice list defined on its own, such as _yes_no: #Choices & {...}
+	if hasField(elStruct, "list_name") {
+		return e.extractChoices(defaultLang, node)
+	}
+	elName := getElementName(elStruct)
+	if elName == "" {
+		// not an element, such as form_settings or a helper value
 		return nil
 	}
 	elPath := elName
 	if path != "" {
 		elPath = path + "/" + elName
 	}
-	for _, f := range elStruct.Elts {
-		name, _, err := ast.LabelName(f.(*ast.Field).Label)
+	for _, el := range elStruct.Elts {
+		f, ok := el.(*ast.Field)
+		if !ok {
+			continue
+		}
+		name, _, err := ast.LabelName(f.Label)
 		if err != nil {
 			return err
 		}
-		if xlsform.IsTranslatableColumn(name) {
-			labels := elementLabel{labels: []label{}}
-			var labelStruct *ast.StructLit
-			switch v := f.(*ast.Field).Value.(type) {
-			case *ast.StructLit:
-				labelStruct = v
-			default:
-				continue
+		switch {
+		case xlsform.IsTranslatableColumn(name):
+			labels, ok, err := translations(f.Value)
+			if err != nil {
+				return err
 			}
-			for _, ls := range labelStruct.Elts {
-				label, err := getLabelFromField(ls.(*ast.Field))
-				if err != nil {
-					return err
-				}
-				labels.labels = append(labels.labels, label)
+			if !ok {
+				continue
 			}
 			if _, err := getDefaultText(defaultLang, labels); err != nil {
 				return err
 			}
-			f.(*ast.Field).Value = e.reference(labels, fmt.Sprintf("%s/%s", elPath, name))
-		} else if name == "choices" {
-			switch v := f.(*ast.Field).Value.(type) {
-			case *ast.BinaryExpr:
-				// choice lists are named across the whole form, so their ids are "list/choice"
-				err = e.extractLabels(defaultLang, v, "")
-				if err != nil {
-					return err
-				}
-			case *ast.ListLit:
-				for _, choice := range v.Elts {
-					for _, c := range choice.(*ast.StructLit).Elts {
-						labels := elementLabel{labels: []label{}}
-						key, _, err := ast.LabelName(c.(*ast.Field).Label)
-						if err != nil {
-							return err
-						}
-						if key == "filterCategory" {
-							continue
-						}
-						target := c.(*ast.Field)
-						labelStruct, ok := target.Value.(*ast.StructLit)
-						if !ok {
-							continue
-						}
-						// a choice with media is {label: ..., image: ...}; only its label is yanked
-						if details := choiceLabelField(labelStruct); details != nil {
-							target = details
-							if labelStruct, ok = details.Value.(*ast.StructLit); !ok {
-								continue
-							}
-						}
-						for _, l := range labelStruct.Elts {
-							label, err := getLabelFromField(l.(*ast.Field))
-							if err != nil {
-								return err
-							}
-							labels.labels = append(labels.labels, label)
-						}
-						if _, err := getDefaultText(defaultLang, labels); err != nil {
-							return err
-						}
-						target.Value = e.reference(labels, fmt.Sprintf("%s/%s", elName, key))
-					}
-				}
+			f.Value = e.reference(labels, fmt.Sprintf("%s/%s", elPath, name))
+		case name == "choices":
+			if err := e.extractChoices(defaultLang, f.Value); err != nil {
+				return err
 			}
-		} else if name == "children" {
-			children := f.(*ast.Field).Value.(*ast.ListLit)
-			for _, child := range children.Elts {
-				err := e.extractLabels(defaultLang, child.(*ast.BinaryExpr), elPath)
-				if err != nil {
+		case name == "children":
+			for _, child := range elementsIn(f.Value) {
+				if err := e.extractLabels(defaultLang, child, elPath); err != nil {
 					return err
 				}
 			}
 		}
 	}
 	return nil
+}
+
+// extractChoices yanks the labels of a choice list. Choice lists are named across the whole form,
+// so their ids are "list/choice".
+func (e *extractor) extractChoices(defaultLang string, node ast.Expr) error {
+	list := elementStruct(node)
+	if list == nil {
+		return nil
+	}
+	listName := getElementName(list)
+	for _, el := range list.Elts {
+		f, ok := el.(*ast.Field)
+		if !ok || listName == "" {
+			continue
+		}
+		if name, _, _ := ast.LabelName(f.Label); name != "choices" {
+			continue
+		}
+		for _, entry := range elementsIn(f.Value) {
+			entryStruct := elementStruct(entry)
+			if entryStruct == nil {
+				continue
+			}
+			for _, c := range entryStruct.Elts {
+				target, ok := c.(*ast.Field)
+				if !ok {
+					continue
+				}
+				key, _, err := ast.LabelName(target.Label)
+				if err != nil {
+					return err
+				}
+				if key == "filterCategory" {
+					continue
+				}
+				// a choice with media is {label: ..., image: ...}; only its label is yanked
+				if details, ok := target.Value.(*ast.StructLit); ok {
+					if labelField := choiceLabelField(details); labelField != nil {
+						target = labelField
+					}
+				}
+				labels, ok, err := translations(target.Value)
+				if err != nil {
+					return err
+				}
+				if !ok {
+					continue
+				}
+				if _, err := getDefaultText(defaultLang, labels); err != nil {
+					return err
+				}
+				target.Value = e.reference(labels, fmt.Sprintf("%s/%s", listName, key))
+			}
+		}
+	}
+	return nil
+}
+
+func hasField(s *ast.StructLit, name string) bool {
+	for _, el := range s.Elts {
+		if f, ok := el.(*ast.Field); ok {
+			if n, _, _ := ast.LabelName(f.Label); n == name {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// elementStruct returns the struct literal of an element written as {...}, #Question & {...} or
+// (...), or nil for anything else, such as a reference
+func elementStruct(expr ast.Expr) *ast.StructLit {
+	switch v := expr.(type) {
+	case *ast.StructLit:
+		return v
+	case *ast.ParenExpr:
+		return elementStruct(v.X)
+	case *ast.BinaryExpr:
+		if s := elementStruct(v.Y); s != nil {
+			return s
+		}
+		return elementStruct(v.X)
+	}
+	return nil
+}
+
+// elementsIn returns the elements of a list literal, including lists passed to calls such as
+// list.Concat([[...], other])
+func elementsIn(expr ast.Expr) []ast.Expr {
+	switch v := expr.(type) {
+	case *ast.ListLit:
+		var elements []ast.Expr
+		for _, el := range v.Elts {
+			if inner, ok := el.(*ast.ListLit); ok {
+				elements = append(elements, elementsIn(inner)...)
+			} else {
+				elements = append(elements, el)
+			}
+		}
+		return elements
+	case *ast.CallExpr:
+		var elements []ast.Expr
+		for _, arg := range v.Args {
+			elements = append(elements, elementsIn(arg)...)
+		}
+		return elements
+	case *ast.ParenExpr:
+		return elementsIn(v.X)
+	}
+	return nil
+}
+
+// translations reads a {lang: "text"} struct literal; ok is false for a plain value or anything
+// that isn't literal text, which is left in the form
+func translations(expr ast.Expr) (elementLabel, bool, error) {
+	lit, ok := expr.(*ast.StructLit)
+	if !ok || len(lit.Elts) == 0 {
+		return elementLabel{}, false, nil
+	}
+	labels := elementLabel{labels: []label{}}
+	for _, el := range lit.Elts {
+		f, ok := el.(*ast.Field)
+		if !ok {
+			return elementLabel{}, false, nil
+		}
+		l, ok, err := getLabelFromField(f)
+		if err != nil || !ok {
+			return elementLabel{}, false, err
+		}
+		labels.labels = append(labels.labels, l)
+	}
+	return labels, true, nil
 }
 
 // choiceLabelField returns the label field of a {label: ..., image: ...} choice, or nil
@@ -356,39 +450,46 @@ func choiceLabelField(choice *ast.StructLit) *ast.Field {
 	return nil
 }
 
-func getElementName(el *ast.StructLit) (string, error) {
-	for _, f := range el.Elts {
-		name, _, err := ast.LabelName(f.(*ast.Field).Label)
-		if err != nil {
-			return "", err
+// getElementName returns an element's name, or a choice list's list_name, or "" if it has neither
+// as literal text
+func getElementName(el *ast.StructLit) string {
+	for _, e := range el.Elts {
+		f, ok := e.(*ast.Field)
+		if !ok {
+			continue
 		}
-		if name == "name" || name == "list_name" {
-			text := f.(*ast.Field).Value.(*ast.BasicLit).Value
-			elName, err := literal.Unquote(text)
-			if err != nil {
-				return "", err
+		if name, _, _ := ast.LabelName(f.Label); name != "name" && name != "list_name" {
+			continue
+		}
+		if lit, ok := f.Value.(*ast.BasicLit); ok && lit.Kind == token.STRING {
+			if elName, err := literal.Unquote(lit.Value); err == nil {
+				return elName
 			}
-			return elName, nil
 		}
 	}
-	return "", errors.New("missing name")
+	return ""
 }
 
-func getLabelFromField(field *ast.Field) (label, error) {
+// getLabelFromField reads one translation; ok is false unless it is literal text, and a language
+// key not written as "Name (code)" is an error
+func getLabelFromField(field *ast.Field) (label, bool, error) {
 	lang, _, err := ast.LabelName(field.Label)
 	if err != nil {
-		return label{}, err
+		return label{}, false, nil
 	}
-	text := field.Value.(*ast.BasicLit).Value
-	text, err = literal.Unquote(text)
+	lit, ok := field.Value.(*ast.BasicLit)
+	if !ok || lit.Kind != token.STRING {
+		return label{}, false, nil
+	}
+	text, err := literal.Unquote(lit.Value)
 	if err != nil {
-		return label{}, err
+		return label{}, false, nil
 	}
 	match := langCodeRe.FindStringSubmatch(lang)
 	if len(match) != 3 {
-		return label{}, xlsform.ErrInvalidLabel
+		return label{}, false, xlsform.ErrInvalidLabel
 	}
-	return label{lang: lang, langCode: match[2], text: text}, nil
+	return label{lang: lang, langCode: match[2], text: text}, true, nil
 }
 
 func getDefaultText(defaultLang string, label elementLabel) (string, error) {
