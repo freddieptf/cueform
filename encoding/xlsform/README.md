@@ -321,8 +321,12 @@ against `#Question`.
   caught.
 - `form_settings` is checked against `#Settings`. Every settings column
   is optional, as in the XLSForm spec. `version` takes a string or a
-  number, and the others take strings, so `default_language: true`
-  fails with `form_settings does not match the schema`.
+  number, and the yes/no flags (`allow_choice_duplicates`,
+  `omit_instanceID`, …) a string or a bool, written as `yes`/`no`.
+  `auto_send` and `auto_delete` must be `"true"` or `"false"`, because
+  pyxform copies them into the XForm unchanged. The others take strings,
+  so `default_language: true` fails with
+  `form_settings does not match the schema`.
 
 **Survey sheet.** Elements are written depth-first in source order.
 
@@ -575,7 +579,12 @@ decodes as `{nairobi: {label: ..., image: ...}}`. pyxform's older
 **Settings.** If the settings sheet has exactly one data row, it becomes
 `form_settings: pkg.#Settings & {type: "settings", ...}`. Every value is
 a string, and empty cells, including cells past the end of a short row,
-are left out. The decoder ignores the settings sheet if it has zero data
+are left out. The exception is the yes/no flags pyxform reads with its
+`yes_no` table (`allow_choice_duplicates`, `clean_text_values`,
+`omit_instanceID`, `client_editable`, `add_none_option`). Their yes/no
+spellings, plus `true()` and `false()`, decode as CUE bools.
+`auto_send` and `auto_delete` stay strings: pyxform copies them into the
+XForm as written, so the schema requires the text `"true"` or `"false"`. The decoder ignores the settings sheet if it has zero data
 rows or more than one.
 
 ## Caveats

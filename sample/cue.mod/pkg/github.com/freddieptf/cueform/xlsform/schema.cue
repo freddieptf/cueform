@@ -95,5 +95,14 @@ import "list"
 	style?:            string
 	version?:          string | number
 	instance_name?:    string
+	// yes/no flags; a bool is written as yes or no
+	allow_choice_duplicates?: string | bool
+	clean_text_values?:       string | bool
+	omit_instanceID?:         string | bool
+	client_editable?:         string | bool
+	add_none_option?:         string | bool
+	// copied into the XForm as written, so they must be the text "true" or "false"
+	auto_send?:   "true" | "false"
+	auto_delete?: "true" | "false"
 	...
 }

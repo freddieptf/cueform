@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"cuelang.org/go/cue/ast"
+	"cuelang.org/go/cue/ast/astutil"
 	"cuelang.org/go/cue/format"
 	"github.com/xuri/excelize/v2"
 )
@@ -572,6 +573,23 @@ func TestDecodeGroupRows(t *testing.T) {
 	for _, typ := range []string{"begin loop", "begin_lgroup", "begin looped group", "end loop", "select_one_external cities"} {
 		if _, err := decode([][]string{{typ, "g", "G"}}); !errors.Is(err, ErrUnsupportedType) || !strings.Contains(err.Error(), "survey row 2") {
 			t.Errorf("%q: have %v, want %v", typ, err, ErrUnsupportedType)
+		}
+	}
+}
+
+// pyxform reads these settings as yes/no flags; auto_send is copied as written, so stays a string
+func TestDecodeSettingFlags(t *testing.T) {
+	form := &xlsForm{
+		settingColumnHeaders: []string{"form_title", "allow_choice_duplicates", "omit_instanceID", "clean_text_values", "auto_send", "style"},
+		settings:             [][]string{{"T", "yes", "TRUE", "false()", "true", "no"}},
+	}
+	b, err := format.Node(form.settingsToAst(astutil.ImportInfo{Ident: "x"}).Value, format.Simplify())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"allow_choice_duplicates: true", "omit_instanceID:         true", "clean_text_values:       false", `auto_send:               "true"`, `style:                   "no"`} {
+		if !strings.Contains(string(b), want) {
+			t.Errorf("want %s in\n%s", want, b)
 		}
 	}
 }

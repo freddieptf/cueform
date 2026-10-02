@@ -35,6 +35,9 @@ var (
 
 	// columns the schema types as string | bool
 	boolColumns = []string{"required", "read_only"}
+	// settings pyxform reads as yes/no flags (aliases.yes_no); auto_send and auto_delete are
+	// copied into the XForm as written, so they stay strings
+	settingBoolColumns = []string{"allow_choice_duplicates", "clean_text_values", "omit_instanceID", "client_editable", "add_none_option"}
 	// matches pyxform's aliases.BINDING_CONVERSIONS (v4.5.0); any other value is an XPath expression
 	boolValues = map[string]bool{
 		"yes": true, "Yes": true, "YES": true, "true": true, "True": true, "TRUE": true,
@@ -495,6 +498,19 @@ func (form *xlsForm) surveyCell(row []string, col string) string {
 	return ""
 }
 
+// settingBoolValue is pyxform's aliases.yes_no: the survey sheet's yes/no spellings plus true()
+// and false()
+func settingBoolValue(value string) (bool, bool) {
+	switch value {
+	case "true()":
+		return true, true
+	case "false()":
+		return false, true
+	}
+	b, ok := boolValues[value]
+	return b, ok
+}
+
 func (form *xlsForm) settingsToAst(importInfo astutil.ImportInfo) *ast.Field {
 	if len(form.settings) != 1 {
 		return nil
@@ -506,7 +522,11 @@ func (form *xlsForm) settingsToAst(importInfo astutil.ImportInfo) *ast.Field {
 		if idx >= len(row) || row[idx] == "" {
 			continue
 		}
-		settings.Elts = append(settings.Elts, &ast.Field{Label: ast.NewIdent(header), Value: ast.NewString(row[idx])})
+		var value ast.Expr = ast.NewString(row[idx])
+		if b, ok := settingBoolValue(row[idx]); ok && slices.Contains(settingBoolColumns, header) {
+			value = ast.NewBool(b)
+		}
+		settings.Elts = append(settings.Elts, &ast.Field{Label: ast.NewIdent(header), Value: value})
 	}
 	return &ast.Field{Label: ast.NewIdent("form_settings"), Value: newConjuction(importInfo, "Settings", settings)}
 }

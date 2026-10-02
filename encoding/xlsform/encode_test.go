@@ -293,6 +293,18 @@ func TestEncode(t *testing.T) {
 			file: "testdata/form_select_external.cue",
 			err:  `city: "select_one_external" is not a valid question type`,
 		}, {
+			// settings flags take bools, written as yes/no; auto_send must be the text true/false
+			file: "testdata/form_settings_flags.cue",
+			form: &xlsForm{
+				surveyColumnHeaders:  []string{"type", "name", "label"},
+				survey:               [][]string{{"note", "intro", "Welcome"}},
+				settingColumnHeaders: []string{"allow_choice_duplicates", "auto_send", "omit_instanceID"},
+				settings:             [][]string{{"yes", "true", "no"}},
+			},
+		}, {
+			file: "testdata/form_settings_auto_send_bool.cue",
+			err:  "form_settings does not match the schema: #Settings.auto_send",
+		}, {
 			file: "testdata/form_or_other.cue",
 			err:  "favourite.or_other: or_other is not supported",
 		}, {
