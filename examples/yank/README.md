@@ -40,6 +40,3 @@ Only struct literals are yanked, wherever they are: `#Question & {...}`, a plain
 element inside `list.Concat`, or a helper such as `_tree_name: #Question & {...}` or
 `_yes_no: #Choices & {...}` that the form refers to by name. References themselves are left
 alone, so questions imported from another package keep their translations there.
-
-#### Current limits
-
