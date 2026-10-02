@@ -468,6 +468,9 @@ a workbook pyxform reads the same way.
 sheet fails with `ErrUnsupportedSheet`, because cueform doesn't support
 entities. `external_choices` and `osm` are dropped with a warning. Any
 other sheet is ignored without a warning, as pyxform ignores it too.
+`select_one_external`, which reads `external_choices`, isn't supported:
+the decoder fails with `ErrUnsupportedType` and the schema rejects the
+type.
 
 **Names and aliases.** As in pyxform 4.5.0, sheet names are matched
 case-insensitively (`Survey` is the survey sheet). A column header's

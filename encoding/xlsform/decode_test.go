@@ -568,8 +568,8 @@ func TestDecodeGroupRows(t *testing.T) {
 		}
 	}
 
-	// pyxform's older group kinds aren't supported
-	for _, typ := range []string{"begin loop", "begin_lgroup", "begin looped group", "end loop"} {
+	// pyxform's older group kinds and select_one_external aren't supported
+	for _, typ := range []string{"begin loop", "begin_lgroup", "begin looped group", "end loop", "select_one_external cities"} {
 		if _, err := decode([][]string{{typ, "g", "G"}}); !errors.Is(err, ErrUnsupportedType) || !strings.Contains(err.Error(), "survey row 2") {
 			t.Errorf("%q: have %v, want %v", typ, err, ErrUnsupportedType)
 		}

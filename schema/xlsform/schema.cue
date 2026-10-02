@@ -10,7 +10,7 @@ import "list"
 #Text: string | #Translatable
 
 // Question types shown to the person filling in the form; they need a label.
-#LabelledQuestionType: "select_one" | "select_multiple" | "select_one_from_file" | "select_multiple_from_file" | "select_one_external" |
+#LabelledQuestionType: "select_one" | "select_multiple" | "select_one_from_file" | "select_multiple_from_file" |
 	"rank" | "text" | "integer" | "decimal" | "range" | "date" | "time" | "dateTime" | "geopoint" | "image" | "audio" | "video" | "file" | "note" |
 	"barcode" | "acknowledge" | "geotrace" | "geoshape"
 

@@ -290,6 +290,9 @@ func TestEncode(t *testing.T) {
 				},
 			},
 		}, {
+			file: "testdata/form_select_external.cue",
+			err:  `city: "select_one_external" is not a valid question type`,
+		}, {
 			file: "testdata/form_or_other.cue",
 			err:  "favourite.or_other: or_other is not supported",
 		}, {

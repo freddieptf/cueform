@@ -383,6 +383,9 @@ func (form *xlsForm) surveyToAst(importInfo astutil.ImportInfo, n *ast.StructLit
 		if elementType == "" {
 			return idx, fmt.Errorf("%w: survey row %d has no type", ErrInvalidXLSForm, rowNumber)
 		}
+		if qtype, _, _ := strings.Cut(elementType, " "); qtype == "select_one_external" {
+			return idx, fmt.Errorf("%w: survey row %d: select_one_external", ErrUnsupportedType, rowNumber)
+		}
 		if legacyGroupRowRe.MatchString(elementType) {
 			return idx, fmt.Errorf("%w: survey row %d: %q; use begin_group or begin_repeat", ErrUnsupportedType, rowNumber, elementType)
 		}
