@@ -133,6 +133,14 @@ func TestBuildChoiceStructPlainLabels(t *testing.T) {
 	}
 }
 
+// a select whose list isn't on the choices sheet used to decode to a nil value and panic
+func TestBuildSurveyElementMissingList(t *testing.T) {
+	_, err := buildSurveyElement(false, []string{"type", "name", "label"}, []string{"select_one cities", "q", "Q"}, map[string]ast.Expr{})
+	if !errors.Is(err, ErrInvalidXLSForm) || !strings.Contains(err.Error(), `choice list "cities"`) {
+		t.Fatalf("have %v, want %v naming the list", err, ErrInvalidXLSForm)
+	}
+}
+
 func TestBuildSurveyElementOrOther(t *testing.T) {
 	for _, typ := range []string{"select_one yes_no or_other", "select_multiple yes_no or specify other", "rank yes_no or other"} {
 		_, err := buildSurveyElement(false, []string{"type", "name", "label::en"}, []string{typ, "q", "Q"}, map[string]ast.Expr{})

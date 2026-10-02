@@ -338,7 +338,11 @@ func buildSurveyElement(nl bool, columnHeaders []string, row []string, choiceMap
 			if suffix != "" {
 				return nil, fmt.Errorf("%w: type %q", ErrOrOther, row[idx])
 			}
-			element.Elts = append(element.Elts, &ast.Field{Label: ast.NewIdent(header), Value: ast.NewString(qtype)}, &ast.Field{Label: ast.NewIdent("choices"), Value: choiceMap[list]})
+			choices, ok := choiceMap[list]
+			if !ok {
+				return nil, fmt.Errorf("%w: type %q uses choice list %q, which the choices sheet doesn't have", ErrInvalidXLSForm, row[idx], list)
+			}
+			element.Elts = append(element.Elts, &ast.Field{Label: ast.NewIdent(header), Value: ast.NewString(qtype)}, &ast.Field{Label: ast.NewIdent("choices"), Value: choices})
 		} else if IsTranslatableColumn(header) && (strings.Contains(header, ":") || translated[header]) {
 			col, lang, err := columnLang(header, translated)
 			if err != nil {

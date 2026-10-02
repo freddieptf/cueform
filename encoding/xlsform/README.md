@@ -464,8 +464,9 @@ the entry's `filterCategory`, as in
 - Every other row becomes `pkg.#Question & {...}`.
 - A type of `select_<x> <list>` or `rank <list>` is split into
   `type: "select_<x>"` (or `"rank"`) and a `choices` field that holds the
-  decoded `<list>` from the choices sheet. A suffix after the list name,
-  such as `or_other`, fails with `ErrOrOther`.
+  decoded `<list>` from the choices sheet. A list the choices sheet
+  doesn't have fails with `ErrInvalidXLSForm`. A suffix after the list
+  name, such as `or_other`, fails with `ErrOrOther`.
 - A translatable header `col::lang` becomes a struct
   `col: {lang: text}`. A plain `col` header becomes a plain value,
   `label: "Name"`, unless the sheet also has `col::lang` headers. In that
@@ -516,10 +517,6 @@ These describe current behavior. Most are bugs or gaps.
   lose digits.
 - **Choice media is lost.** The encoder can't write choice `image`,
   `audio` or `video` columns, and the decoder drops them.
-- **Choice list with no match.** The decoder doesn't check that a
-  `select_*` list name exists in the choices sheet. This includes
-  `select_one_from_file <file>`. With no match, `choices` gets a nil
-  expression.
 - **Possible panics.** The decoder dereferences values without
   checking them first, so these inputs can panic:
   - a top-level element with no `name` column value;
