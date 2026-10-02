@@ -3,6 +3,7 @@ package xlsform
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"log"
 	"os"
 	"reflect"
@@ -460,6 +461,53 @@ func TestUnsupportedSheets(t *testing.T) {
 		}
 		if tc.warning != "" && !strings.Contains(logs.String(), tc.warning) {
 			t.Errorf("no warning %q in %q", tc.warning, logs.String())
+		}
+	}
+}
+
+// malformed rows used to panic; they now decode or fail naming the sheet row
+func TestDecodeMalformedRows(t *testing.T) {
+	decode := func(survey [][]string, settings [][]string) ([]byte, error) {
+		f := excelize.NewFile()
+		f.SetSheetName("Sheet1", "survey")
+		for i, row := range survey {
+			f.SetSheetRow("survey", fmt.Sprintf("A%d", i+1), &row)
+		}
+		if settings != nil {
+			f.NewSheet("settings")
+			for i, row := range settings {
+				f.SetSheetRow("settings", fmt.Sprintf("A%d", i+1), &row)
+			}
+		}
+		buf, err := f.WriteToBuffer()
+		if err != nil {
+			t.Fatal(err)
+		}
+		return NewDecoder("x").Decode(buf)
+	}
+
+	// a settings row shorter than its header
+	src, err := decode([][]string{{"type", "name", "label"}, {"note", "n", "N"}}, [][]string{{"form_title", "form_id", "version"}, {"T"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(src), `form_title: "T"`) || strings.Contains(string(src), "form_id") {
+		t.Errorf("short settings row: have\n%s", src)
+	}
+
+	for _, tc := range []struct {
+		name   string
+		survey [][]string
+		want   string
+	}{
+		// the row ends before its type cell
+		{"no type", [][]string{{"name", "label", "type"}, {"n", "N"}}, "survey row 2 has no type"},
+		{"no name", [][]string{{"type", "name", "label"}, {"note", "a", "A"}, {"text", "", "No name"}}, "survey row 3 (text) has no name"},
+		{"no name in a group", [][]string{{"type", "name", "label"}, {"begin_group", "g", "G"}, {"text", "", "Q"}, {"end_group"}}, "survey row 3 (text) has no name"},
+	} {
+		_, err := decode(tc.survey, nil)
+		if !errors.Is(err, ErrInvalidXLSForm) || !strings.Contains(err.Error(), tc.want) {
+			t.Errorf("%s: have %v, want %q", tc.name, err, tc.want)
 		}
 	}
 }

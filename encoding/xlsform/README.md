@@ -518,6 +518,10 @@ warning for each: `warning: choices column "image" is dropped: choice media isn'
 
 - Empty rows are skipped. So are empty cells, which means a column with
   no value in a row produces no field for that row.
+- Every other row needs a `type`, and every row except a group's closing
+  `end` row needs a `name`, as in pyxform. Otherwise decoding fails with
+  `ErrInvalidXLSForm` naming the sheet row:
+  `survey row 3 (text) has no name`.
 - A row whose type starts with `begin` becomes `pkg.#Group & {...}`. The
   rows after it, up to the next row whose type starts with `end`, go
   into its `children`. Groups can be nested.
@@ -550,7 +554,8 @@ warning for each: `warning: choices column "image" is dropped: choice media isn'
 
 **Settings.** If the settings sheet has exactly one data row, it becomes
 `form_settings: pkg.#Settings & {type: "settings", ...}`. Every value is
-a string. The decoder ignores the settings sheet if it has zero data
+a string, and empty cells, including cells past the end of a short row,
+are left out. The decoder ignores the settings sheet if it has zero data
 rows or more than one.
 
 ## Caveats
@@ -580,11 +585,6 @@ These describe current behavior. Most are bugs or gaps.
   lose digits.
 - **Choice media is lost.** The encoder can't write choice `image`,
   `audio` or `video` columns, and the decoder drops them with a warning.
-- **Possible panics.** The decoder dereferences values without
-  checking them first, so these inputs can panic:
-  - a top-level element with no `name` column value;
-  - a settings row with fewer cells than the header row;
-  - a row whose `type` cell is beyond the end of that row.
 - **An early `end` stops decoding.** An `end` row at the top level,
   with no matching `begin`, ends the survey. Rows after it are dropped.
 - **Choice-list order is not fixed.** Choice lists are built from a

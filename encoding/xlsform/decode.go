@@ -335,13 +335,19 @@ func (form *xlsForm) surveyToAst(importInfo astutil.ImportInfo, n *ast.StructLit
 			return idx, nil
 		}
 		row := form.survey[idx]
-		if len(row) == 0 {
-			// skip empty rows
-			idx++
+		// the header is sheet row 1
+		rowNumber := idx + 2
+		idx++
+		if !slices.ContainsFunc(row, func(c string) bool { return c != "" }) {
 			continue
 		}
-		idx++
-		elementType := row[slices.Index(form.surveyColumnHeaders, "type")]
+		elementType := form.surveyCell(row, "type")
+		if elementType == "" {
+			return idx, fmt.Errorf("%w: survey row %d has no type", ErrInvalidXLSForm, rowNumber)
+		}
+		if !strings.HasPrefix(elementType, "end") && form.surveyCell(row, "name") == "" {
+			return idx, fmt.Errorf("%w: survey row %d (%s) has no name", ErrInvalidXLSForm, rowNumber, elementType)
+		}
 		if strings.HasPrefix(elementType, "begin") {
 			group, err := buildSurveyElement(true, form.surveyColumnHeaders, row, choiceMap)
 			if err != nil {
@@ -431,13 +437,26 @@ func columnLang(header string, translated map[string]bool) (string, string, erro
 	return GetLangFromCol(header)
 }
 
+// surveyCell returns a survey row's value in a column, or "" when the row is shorter than the header
+func (form *xlsForm) surveyCell(row []string, col string) string {
+	if i := slices.Index(form.surveyColumnHeaders, col); i >= 0 && i < len(row) {
+		return row[i]
+	}
+	return ""
+}
+
 func (form *xlsForm) settingsToAst(importInfo astutil.ImportInfo) *ast.Field {
 	if len(form.settings) != 1 {
 		return nil
 	}
 	settings := ast.NewStruct(&ast.Field{Label: ast.NewIdent("type"), Value: ast.NewString("settings")})
+	row := form.settings[0]
 	for idx, header := range form.settingColumnHeaders {
-		settings.Elts = append(settings.Elts, &ast.Field{Label: ast.NewIdent(header), Value: ast.NewString(form.settings[0][idx])})
+		// a row shorter than the header leaves the last settings empty
+		if idx >= len(row) || row[idx] == "" {
+			continue
+		}
+		settings.Elts = append(settings.Elts, &ast.Field{Label: ast.NewIdent(header), Value: ast.NewString(row[idx])})
 	}
 	return &ast.Field{Label: ast.NewIdent("form_settings"), Value: newConjuction(importInfo, "Settings", settings)}
 }
