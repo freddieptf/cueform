@@ -1,2 +1,2 @@
 module: "github.com/freddieptf/cueform/examples"
-language: version: "v0.17.1"
+language: version: "v0.16.0"
